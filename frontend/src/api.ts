@@ -84,6 +84,51 @@ export const api = {
 
   events: () => request<any>("/events/upcoming"),
   feed: () => request<any>("/social/feed"),
+
+  // --- sport extras ---
+  ensureSport: (sport_id: string) =>
+    request<any>(`/player-sports/ensure?sport_id=${sport_id}`, { method: "POST" }),
+  scoringConfig: () => request<any>("/scoring/config"),
+  ratingHistory: (sport_id: string) => request<any>(`/sports/${sport_id}/rating-history`),
+
+  // --- live scoring ---
+  liveCreate: (payload: any) => request<any>("/live/create", { method: "POST", body: JSON.stringify(payload) }),
+  liveGet: (id: string) => request<any>(`/live/${id}`),
+  liveEvent: (id: string, type: string, side?: number, note?: string) =>
+    request<any>(`/live/${id}/event`, { method: "POST", body: JSON.stringify({ type, side, note }) }),
+  liveFinalize: (id: string) => request<any>(`/live/${id}/finalize`, { method: "POST" }),
+  liveAbandon: (id: string) => request<any>(`/live/${id}/abandon`, { method: "POST" }),
+  liveMine: () => request<any>("/live/mine/active"),
+
+  // --- competitions ---
+  compCreate: (payload: any) => request<any>("/competitions/create", { method: "POST", body: JSON.stringify(payload) }),
+  compList: (sport_id?: string) => request<any>(`/competitions/list${sport_id ? `?sport_id=${sport_id}` : ""}`),
+  compMine: () => request<any>("/competitions/mine"),
+  compDetail: (cid: string) => request<any>(`/competitions/${cid}`),
+  compRegister: (cid: string) => request<any>(`/competitions/${cid}/register`, { method: "POST" }),
+  compWithdraw: (cid: string) => request<any>(`/competitions/${cid}/withdraw`, { method: "POST" }),
+  compGenerate: (cid: string) => request<any>(`/competitions/${cid}/generate-fixtures`, { method: "POST" }),
+  fixtureManualResult: (fid: string, games: number[][]) =>
+    request<any>(`/fixtures/${fid}/manual-result`, { method: "POST", body: JSON.stringify({ games }) }),
+
+  // --- social ---
+  ltpCreate: (payload: any) => request<any>("/ltp/create", { method: "POST", body: JSON.stringify(payload) }),
+  ltpList: (sport_id?: string) => request<any>(`/ltp/list${sport_id ? `?sport_id=${sport_id}` : ""}`),
+  nearby: (sport_id?: string) => request<any>(`/social/nearby${sport_id ? `?sport_id=${sport_id}` : ""}`),
+  playRequestCreate: (payload: any) => request<any>("/play-requests/create", { method: "POST", body: JSON.stringify(payload) }),
+  playRequestsMine: () => request<any>("/play-requests/mine"),
+  playRequestAction: (request_id: string, action: string) =>
+    request<any>("/play-requests/action", { method: "POST", body: JSON.stringify({ request_id, action }) }),
+  messageSend: (to_user_id: string, text: string) =>
+    request<any>("/messages/send", { method: "POST", body: JSON.stringify({ to_user_id, text }) }),
+  messagesThread: (other_user_id: string) => request<any>(`/messages/${other_user_id}`),
+  messageThreads: () => request<any>("/messages"),
+
+  // --- history ---
+  matchHistory: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<any>(`/matches/history${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export { request };

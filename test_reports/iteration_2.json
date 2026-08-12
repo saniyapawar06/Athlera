@@ -1,0 +1,49 @@
+{
+  "summary": "ATHLERA V2: 24/24 new backend pytest cases passed (test_athlera_v2.py) covering live scoring engine for all 5 sports (squash 12-10 win-by-2, badminton cap-30, tennis 6-0 + tiebreak, padel 6-0, pickleball side-out rule verified), UNDO state restoration, finalize applying rating_changes to player_sports (verified via dashboard before/after), competitions (league round-robin C(4,2)=6 fixtures + manual-result → standings 3 pts win, knockout 5-player with 3 byes → progressed to champion + status=complete), organiser-only 403 guard on generate-fixtures & manual-result, auto-add sport (both /ensure and implicit via /live/create), Looking-to-Play + play-request dedupe/cancel, nearby, messaging, match-history filters (sport_id/result=win|loss/source=live|manual), rating history, and guest 403 on live/create + competitions/create + ltp/create + play-requests/create + messages/send. FRONTEND smoke: register→onboarding(squash)→dashboard→sport page renders with all 4 action buttons visible (record, live, league, knockout). action-live navigates to /live/setup which renders correctly (opponent search, best-of chips, warmup chips, toss button, START LIVE MATCH). action-league navigates to /competition/create. Fixed one MongoDB _id serialization bug in ensure_player_sport() (see below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/player-sports/ensure", "issue": "FIXED by tester: was returning player_sport dict still containing MongoDB ObjectId '_id' after insert_one() mutation → 500 ValueError('ObjectId not iterable'). Fixed by projecting out _id in return statement of ensure_player_sport()."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "live/setup.tsx", "issue": "The 'Do the toss to set first server' red error text remains visible even after toss animation completes and 'S1 · Rania Al-Amri serves first' is shown. State should clear err once toss result is set. Cosmetic but confusing.", "testID": "setup-error", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": [
+        "Pre-existing RN Web warnings still present: shadow* props and props.pointerEvents deprecation (non-blocking, carried over from V1)."
+      ]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_athlera_v2.py",
+    "/app/backend/tests/test_athlera_api.py",
+    "/app/test_reports/pytest/pytest_v2_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) In /app/frontend/app/live/setup.tsx clear the 'err' state to null once the toss coroutine finishes and setFirstServer() runs, so the red 'Do the toss to set first server' text disappears after a completed toss.",
+    "(Optional) Consider projecting `_id: 0` in ALL Mongo find_one/find used for return payloads (audit for other endpoints — I only patched ensure_player_sport where it was already breaking).",
+    "(Optional) 'Continue as Guest' has no visible touch-target hint after auto-added sport is created via /player-sports/ensure — surface a toast/badge so the user knows a new sport was auto-added when Live/Competition preview is used."
+  ],
+  "critical_code_review_comments": [
+    "scoring.py is clean, deterministic and unit-testable; snapshot-based UNDO is the correct approach and works reliably across all 5 sports.",
+    "Pickleball side-out logic (scoring.py:_advance_point_sport pickleball branch) correctly implements: receiver rally-win => no score change, server_number 1→2 in doubles else server_side flips; verified via API.",
+    "Knockout bracket seeding (server.py:1442-1469) correctly seeds by rating, pads to next power of two with byes, generates round 1 (5 players → 4 fixtures, 3 byes) and auto-progresses winners; verified end-to-end to champion + status=complete.",
+    "Manual fixture result endpoint correctly gates on organiser_id (403 verified).",
+    "Guest 403 uniformly enforced on live/create, competitions/create, ltp/create, play-requests/create, messages/send.",
+    "Minor DRY: several endpoints (competitions_list, competitions_mine, matches/history) manually build user-name maps — consider a helper `_names_for(ids)`."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_athlera_v2.py (new — 24 tests)",
+    "/app/backend/server.py (fix: ensure_player_sport now strips _id before return; 1 line)"
+  ],
+  "success_rate": {"backend": "100% (24/24 V2 + prior 36/36 V1)", "frontend": "Sport page + Live setup + Competition create navigation verified; deeper scorer/finalize UI not exhaustively driven from Playwright but backend engine fully validated"},
+  "seed_data_creation": "Registered ~10 fresh users; created 1 league competition + 1 knockout competition + several TEST_ LTP/play-request/messages; multiple auto-verified matches against seed opponents.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend V2 tests: /app/backend/tests/test_athlera_v2.py — run with `EXPO_PUBLIC_BACKEND_URL=... pytest tests/test_athlera_v2.py -n 0`. Key testIDs for the new screens: live-setup-screen, mode-oneoff, setup-opponent-search, setup-opp-<uid>, bestof-{1,3,5}, warmup-{0,30,60,120}, toss-btn, start-live-btn, live-scorer-screen, score-side-{0,1}, ctrl-undo, ctrl-let, ref-<event>, abandon-btn, skip-warmup, next-game-btn, competition-create-screen, cc-sport-<id>, cc-name, cc-type-{league,knockout,tournament}, cc-vis-{public,private}, cc-city, cc-venue, cc-fee, cc-mpo-<n>, cc-po-<n>, cc-max-<n>, cc-submit, action-{record,live,league,knockout} on sport-detail-screen. Live setup toss delay: the animated toss takes ~400ms; wait ≥800ms after clicking toss-btn before pressing start-live-btn or the setup will show 'Do the toss to set first server' error.",
+  "rca_of_issue": "Bug: POST /api/player-sports/ensure returned 500 due to Mongo ObjectId leaking into response. RCA: `ensure_player_sport()` builds `doc` then calls `await DB.player_sports.insert_one(doc)` which mutates `doc` by adding `_id` (ObjectId). The next line `return {k: v for k, v in doc.items()}` copied that _id into the return payload, and FastAPI's JSON encoder threw. Repro: `curl -X POST '/api/player-sports/ensure?sport_id=tennis' -H 'Authorization: Bearer <token-of-user-without-tennis>'` → 500. Fix applied: filter out `_id` in the return dict comprehension. Now returns clean player_sport object and endpoint validated (24/24 tests pass)."
+}
