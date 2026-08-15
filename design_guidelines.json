@@ -1,0 +1,212 @@
+{
+  "app_name": "ATHLERA",
+  "personality": "7 Dark-First Utility",
+  "personality_one_liner": "A premium, high-contrast, data-driven athletic command center designed for rapid readability and competitive edge.",
+  "color": {
+    "surface": "#0B0D12",
+    "onSurface": "#F3F4F6",
+    "surfaceSecondary": "#151821",
+    "onSurfaceSecondary": "#9CA3AF",
+    "surfaceTertiary": "#1F232F",
+    "onSurfaceTertiary": "#6B7280",
+    "surfaceInverse": "#F3F4F6",
+    "onSurfaceInverse": "#0B0D12",
+    "brand": "#E62E2D",
+    "brandPrimary": "#E62E2D",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FF5C5C",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#4A1A1A",
+    "onBrandTertiary": "#FFB3B3",
+    "success": "#10B981",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#374151",
+    "onInfo": "#FFFFFF",
+    "border": "#242938",
+    "borderStrong": "#374151",
+    "divider": "#1F232F",
+    "sportTennis": "#DFFF00",
+    "sportPadel": "#FF6B6B",
+    "sportSquash": "#00FA9A",
+    "sportBadminton": "#FFC107",
+    "sportPickleball": "#39FF14"
+  },
+  "light_mode_colors": {
+    "surface": "#FFFFFF",
+    "onSurface": "#111827",
+    "surfaceSecondary": "#F3F4F6",
+    "onSurfaceSecondary": "#4B5563",
+    "surfaceTertiary": "#E5E7EB",
+    "onSurfaceTertiary": "#6B7280",
+    "surfaceInverse": "#111827",
+    "onSurfaceInverse": "#F9FAFB",
+    "brand": "#D32F2F",
+    "brandPrimary": "#D32F2F",
+    "onBrandPrimary": "#FFFFFF",
+    "border": "#E5E7EB",
+    "borderStrong": "#D1D5DB",
+    "divider": "#F3F4F6"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 48,
+      "4xl": 64
+    }
+  },
+  "spacing": {
+    "rule": "Use an 8pt grid. Generous spacing around main metrics, dense spacing for leaderboards and live scores.",
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48,
+    "3xl": 64
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [
+      "Use solid surfaceSecondary with 1px border for elevated elements"
+    ],
+    "dont's": [
+      "No blur, no glassmorphism. This is a tactical Dark-First UI."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Opening / Auth",
+      "purpose": "Brand introduction and authentication.",
+      "states": {
+        "loading": "Centered brand spinner",
+        "empty": "N/A",
+        "error": "Standard error toast"
+      },
+      "layout": "Full-bleed background image with gradient scrim (top to bottom fade to surfaceInverse). ATHLERA logo centered, 'Era of the Athlete' tagline below. Bottom 30% contains Sign In, Google/Apple auth, and Continue as Guest buttons."
+    },
+    {
+      "name": "Onboarding",
+      "purpose": "Setup athletic profile and provisional ratings.",
+      "states": {
+        "loading": "Spinner during rating generation",
+        "empty": "N/A",
+        "error": "Retry on upload failure"
+      },
+      "layout": "Step-by-step wizard. Multi-select sport tiles. Accredited rating upload screen with image picker. Provisional rating generated with a prominent Verified/Provisional badge."
+    },
+    {
+      "name": "My Sports (Dashboard)",
+      "purpose": "Primary athletic identity and high-level sport status.",
+      "states": {
+        "loading": "Skeleton sport cards",
+        "empty": "Prompt to add a sport",
+        "error": "Retry fetching stats"
+      },
+      "layout": "Top sticky header with Profile/Notifications. Hero section features UAS prominently in Barlow Condensed (e.g., size 64) with Percentile and Streaks beside it. Scrollable vertical list of Sport Cards below. Each Sport Card uses the sport's specific accent color for its border/tags, showing Rating, Provisional/Verified badge, Competitive Band, Rank, and Live Match status."
+    },
+    {
+      "name": "Sport Detail Page",
+      "purpose": "Deep dive into a specific sport's performance and history.",
+      "states": {
+        "loading": "Skeleton graph and lists",
+        "empty": "No matches played yet",
+        "error": "Error loading history"
+      },
+      "layout": "Sport-specific accent color used sparingly. Tab navigation (Leaderboard, Scores, Overview) under a sticky header. Overview contains Rating History chart and Match Entry CTA pinned at bottom. Leaderboard uses dense, compact list rows with high-contrast ranking numbers."
+    },
+    {
+      "name": "Live Scoring",
+      "purpose": "Real-time match tracking.",
+      "states": {
+        "loading": "Connecting to match...",
+        "empty": "N/A",
+        "error": "Sync error, offline mode active"
+      },
+      "layout": "Aggressive, high-contrast tactical layout. Huge score numerals taking up 40% of the screen. Segmented controls for Sets/Games. Clear 'Upset Bonus · Clear Win' rating projection preview tags dynamically updating. Distinct, oversized Tap-to-Score hit areas."
+    },
+    {
+      "name": "Leagues & Events",
+      "purpose": "Discovery of competitive play.",
+      "states": {
+        "loading": "Skeleton cards",
+        "empty": "No events nearby",
+        "error": "Location error"
+      },
+      "layout": "Horizontal scrollable chip row for City/Filter at the top. Vertical list of Event Cards. Each card uses a background image with top-to-bottom gradient scrim, placing title and date over the dark scrim area."
+    }
+  ],
+  "images": {
+    "hero_stadium_bg": {
+      "url": "https://images.pexels.com/photos/30566478/pexels-photo-30566478.jpeg",
+      "alt": "Dramatic spotlight beam shining into the night sky"
+    },
+    "sport_tennis": {
+      "url": "https://images.unsplash.com/photo-1545151414-8a948e1ea54f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwyfHx0ZW5uaXMlMjBzZXJ2ZSUyMGRyYW1hdGljJTIwc3RhZGl1bXxlbnwwfHx8fDE3ODY1NDk2ODJ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Tennis player serving overhead"
+    },
+    "sport_padel": {
+      "url": "https://images.unsplash.com/photo-1508129214940-7b2223ae0a08?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHw0fHxwYWRlbCUyMHBsYXllciUyMGFjdGlvbiUyMGNvdXJ0JTIwbmlnaHR8ZW58MHx8fHwxNzg2MzY2ODEyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Padel match at night"
+    },
+    "sport_squash": {
+      "url": "https://images.pexels.com/photos/8007134/pexels-photo-8007134.jpeg",
+      "alt": "Squash player mid-action"
+    },
+    "sport_badminton": {
+      "url": "https://images.pexels.com/photos/14605729/pexels-photo-14605729.jpeg",
+      "alt": "Badminton player smashing"
+    },
+    "sport_pickleball": {
+      "url": "https://images.pexels.com/photos/29439346/pexels-photo-29439346.jpeg",
+      "alt": "Pickleball indoor action"
+    }
+  },
+  "haptics": {
+    "events": {
+      "score_tap": "impactLight",
+      "rating_update": "notificationSuccess",
+      "tab_change": "selection",
+      "match_end": "notificationSuccess"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Design Language: Implement a highly tactical, dark-first UI matching '7 Dark-First Utility'. Skip glassmorphism. Rely on borders, surface tonal shifts, and strict spacing for component boundaries.",
+    "Typography: Use Barlow Condensed heavily for all numerical metrics (UAS, match scores, leaderboards) and headers. Keep DM Sans for dense tabular data and body copy. Do not use Inter.",
+    "Sport Colors: Integrate the sport specific colors provided in the color JSON object (sportTennis, sportPadel, etc.). These should be used for tags, active borders on Sport Cards, and subtle chart accents. NEVER use them as full backgrounds. Only as thin strokes or text accents.",
+    "Scrim Pattern: Every background image must have a vertical linear gradient from transparent (0%) to surfaceInverse (70%+ opacity at 100%) so that foreground text remains highly legible.",
+    "Live Scoring Layout: Emphasize readability at a glance. Make hit areas (Pressables) large (at least 64x64) for courtside taps. Use segmented controls rather than dropdowns. Display 'Upset Bonus' / 'Clear Win' tags prominently under the score.",
+    "Tabs: Standard bottom navigation for main 6 sections. Use Phosphor icons (regular for inactive, filled/bold for active).",
+    "UAS Hero Component: Render the UAS (Universal Athlete Score) as the dominant visual on the Dashboard. E.g., font size 64+, Barlow Condensed, brand primary color. Add a 'Percentile' tag and 'Streaks' component flanking it."
+  ]
+}
