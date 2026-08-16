@@ -1,0 +1,36 @@
+{
+  "summary": "Full-stack validation of ATHLERA gamification refinement. Backend: 9/9 pytest tests pass (dashboard shape with insights + recent_achievements + achievement_count/total=21, achievements catalog=21 with backfill, idempotent backfill, matches/submit win/loss returns rating_change delta, share->feed, knockout champion achievement). Frontend: end-to-end demo flow works - opening -> auth -> dashboard shows UAS hero with 15 TROPHIES, momentum-strip with recent achievements, insight pills insights-<sport_id> with expected texts ('X matches until rating is established', 'N match streak', 'N wins from last N', 'N places this week'). Trophies screen shows category groups (Ranking 5/5, Streaks 1/3, Competitions 0/3, etc.) with locked/unlocked badges. Profile screen shows Trophy Room section and 8 recent achievement chips. Social screen FEED tab (social-tab-feed) renders 4 highlight-* and 17 result-* items including the just-shared TEST 2 match streak. Score flow (SCORE + button -> pick-sport-squash -> pick-opponent-* -> game-a-N/game-b-N -> preview-rating-btn -> confirm-submit-btn) triggers ResultOverlay with animated rating tick (6080->6098, +18), NEW PERSONAL BEST headline, unlocked 'On a Roll' achievement chip, Share button (turns into SHARED after tap) and Continue button. One data discrepancy detected: Trophies screen header shows 10/21 (48%) while /api/me/achievements and Profile screen both show 15/21 - see backend_issues.minor.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/me/achievements vs Trophies screen count", "issue": "API returns 15 unlocked for demo user and Profile screen shows 15/21, but the Trophies screen header shows 10/21 (48%). Likely a client-side filter/grouping counts only certain categories or a stale cache. Please align counts."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "trophies-screen", "issue": "Achievement earned count in header (10/21) does not match /api/me/achievements unlocked length (15) and Profile screen count (15/21).", "testID": "trophies-screen", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "score step 3", "issues": ["Second score column (game-b) is clipped on the right edge on 390px viewport (see /tmp/step3.png); the '11 - _' input is only partially visible. Consider reducing horizontal padding or moving the '-' separator."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_gamification_v3.py", "/app/test_reports/pytest/gami_v3.xml"],
+  "action_items": [
+    "Reconcile Trophies screen count with /api/me/achievements unlocked total (currently 10 vs 15 for demo user). Ensure both Profile 'Trophy Room' count and Trophies screen header use the same source of truth.",
+    "Consider adding testID='tab-social' (or similar) on the Expo Router tab bar Tabs.Screen for reliability in automated tests (currently only reachable via inner text 'SOCIAL').",
+    "Score step-3 layout: the right side score input is clipped on a 390-wide viewport — tighten padding or wrap the score row."
+  ],
+  "critical_code_review_comments": [
+    "server.py is a single 2230+ line file - consider splitting into routers (auth, matches, competitions, social, gamification) for maintainability.",
+    "Auto-verify path in /matches/submit relies on `opp_user.is_seed` - the current opponents/search response omits `is_seed`, so clients cannot distinguish seed vs real. Consider surfacing an `is_seed` or `auto_verifies` flag so UI can indicate to users when the result will be instant."
+  ],
+  "updated_files": ["/app/backend/tests/test_gamification_v3.py"],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "seed_data_creation": "Test users of the form qa_<uuid>@athlera.dev were created for the pytest run (they submitted matches and one shared a TEST highlight to the feed). No seed data was modified. Demo account remains at 15/21 achievements.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All primary gamification flows validated E2E on demo.gamer@athlera.com. Use `logo-enter-button` testID (not `logo-tap`) to leave the opening screen. Tabs bar has NO testIDs - navigate by text ('SOCIAL','SPORTS','COMPETE','RANKINGS') or by mouse click at coordinates ~(195,795) for centre + score button. Score entry uses testIDs game-a-<n>/game-b-<n> (NOT game-<n>-side0/side1) and preview-rating-btn / confirm-submit-btn. Seed opponents can be selected by searching 'aarav' / 'bianca' etc. or picking `pick-opponent-888a7b0c-a2b3-4e2c-9270-f726a87e14e2` (Aarav Mehta seed).",
+  "rca_of_issue": "Trophies count mismatch: /api/me/achievements returns 15 unlocked codes for demo user; Profile screen also renders 15/21 EARNED. Trophies screen header renders 10/21 (48%). The discrepancy points to either (a) trophies-screen filtering catalog by categories that don't include all unlocked codes (some unlocked achievement codes may not be mapped to any of the displayed groups), or (b) trophies-screen using a stale cached count. Reproduce: sign in as demo, tap header trophy icon -> compare header vs /api/me/achievements. Suggested fix: in trophies.tsx compute earned = unlocked.length (from GET /api/me/achievements) rather than summing per-group counts, or ensure every achievement code is assigned exactly one category."
+}

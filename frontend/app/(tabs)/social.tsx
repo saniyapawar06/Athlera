@@ -1,0 +1,206 @@
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, spacing, radius, font, sportAccent } from "@/src/theme";
+import { api } from "@/src/api";
+
+type Tab = "feed" | "nearby" | "ltp" | "requests";
+
+function timeAgo(iso?: string): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return "now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+export default function SocialScreen() {
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>("feed");
+  const [feed, setFeed] = useState<any[]>([]);
+  const [nearby, setNearby] = useState<any[]>([]);
+  const [ltp, setLtp] = useState<any[]>([]);
+  const [reqs, setReqs] = useState<{ incoming: any[]; outgoing: any[] }>({ incoming: [], outgoing: [] });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [f, n, l, r] = await Promise.all([api.feed(), api.nearby(), api.ltpList(), api.playRequestsMine()]);
+      setFeed(f.items || []); setNearby(n.players || []); setLtp(l.posts || []); setReqs(r);
+    } finally { setLoading(false); }
+  }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const askToPlay = async (uid: string, sport_id: string) => {
+    setBusy(true);
+    try { await api.playRequestCreate({ to_user_id: uid, sport_id }); await load(); setTab("requests"); }
+    catch (e) { /* duplicate etc */ } finally { setBusy(false); }
+  };
+
+  const reqAction = async (rid: string, action: string) => {
+    setBusy(true);
+    try { await api.playRequestAction(rid, action); await load(); } finally { setBusy(false); }
+  };
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top"]} testID="social-screen">
+      <View style={styles.header}>
+        <Text style={styles.title}>SOCIAL</Text>
+        <Pressable testID="new-ltp-btn" onPress={() => router.push("/looking-to-play/create")} style={styles.newBtn}>
+          <Ionicons name="add" size={18} color="#0B0D12" /><Text style={styles.newBtnText}>LOOKING TO PLAY</Text>
+        </Pressable>
+      </View>
+      <View style={styles.tabs}>
+        {(["feed", "nearby", "ltp", "requests"] as Tab[]).map((t) => (
+          <Pressable key={t} testID={`social-tab-${t}`} onPress={() => setTab(t)} style={[styles.tab, tab === t && { borderBottomColor: colors.brand }]}>
+            <Text style={[styles.tabText, tab === t && { color: colors.onSurface }]}>{t === "ltp" ? "PLAY" : t.toUpperCase()}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {loading ? <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} /> :
+        tab === "feed" ? (
+          feed.length === 0 ? <Empty t="No activity yet — win a match and share it" /> :
+          feed.map((item) => (
+            item.type === "highlight" ? (
+              <View key={item.id} style={[styles.feedCard, { borderLeftColor: item.sport_id ? sportAccent(item.sport_id) : colors.brand }]} testID={`feed-highlight-${item.id}`}>
+                <View style={[styles.feedIcon, { borderColor: item.sport_id ? sportAccent(item.sport_id) : colors.brand }]}>
+                  <Ionicons name={item.icon as any} size={18} color={item.sport_id ? sportAccent(item.sport_id) : colors.brand} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.feedTopRow}>
+                    <Text style={styles.feedAuthor} numberOfLines={1}>{item.author}{item.is_mine ? " (You)" : ""}</Text>
+                    <Text style={styles.feedTime}>{timeAgo(item.created_at)}</Text>
+                  </View>
+                  <Text style={styles.feedHeadline}>{item.headline}</Text>
+                  {item.subtext ? <Text style={styles.feedSub}>{item.subtext}</Text> : null}
+                </View>
+              </View>
+            ) : (
+              <View key={item.id} style={styles.feedResult} testID={`feed-result-${item.id}`}>
+                <View style={[styles.sportDot, { backgroundColor: sportAccent(item.sport_id) }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.feedResultText}>{item.text}</Text>
+                  <Text style={styles.feedResultScore}>{item.score}</Text>
+                </View>
+                <Text style={styles.feedTime}>{timeAgo(item.created_at)}</Text>
+              </View>
+            )
+          ))
+        ) : tab === "nearby" ? (
+          nearby.length === 0 ? <Empty t="No players nearby" /> :
+          nearby.map((p) => (
+            <View key={p.user_id + p.sport_id} style={styles.card} testID={`nearby-${p.user_id}`}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{p.display_name}</Text>
+                <Text style={styles.meta}>{p.area} · ~{p.distance_km} km · <Text style={{ color: sportAccent(p.sport_id) }}>{p.sport.name}</Text> {p.rating}</Text>
+                <View style={styles.actionRow}>
+                  <Pressable testID={`view-${p.user_id}`} onPress={() => router.push(`/athlete/${p.user_id}`)} style={styles.miniBtn}><Text style={styles.miniText}>PROFILE</Text></Pressable>
+                  <Pressable testID={`ask-${p.user_id}`} onPress={() => askToPlay(p.user_id, p.sport_id)} disabled={busy} style={[styles.miniBtn, { borderColor: colors.brand }]}><Text style={[styles.miniText, { color: colors.brand }]}>ASK TO PLAY</Text></Pressable>
+                  <Pressable testID={`msg-${p.user_id}`} onPress={() => router.push(`/messages/${p.user_id}`)} style={styles.miniBtn}><Text style={styles.miniText}>MESSAGE</Text></Pressable>
+                </View>
+              </View>
+            </View>
+          ))
+        ) : tab === "ltp" ? (
+          ltp.length === 0 ? <Empty t="No open posts — create one" /> :
+          ltp.map((p) => (
+            <View key={p.id} style={styles.card} testID={`ltp-${p.id}`}>
+              <View style={styles.ltpHead}>
+                <View style={[styles.sportDot, { backgroundColor: sportAccent(p.sport_id) }]} />
+                <Text style={styles.ltpSport}>{p.sport.name.toUpperCase()}</Text>
+                <Text style={styles.ltpBy}>· {p.display_name}{p.is_mine ? " (You)" : ""}</Text>
+              </View>
+              <Text style={styles.ltpWhen}>{p.when_text} · {p.area} · within {p.radius_km}km</Text>
+              {p.message ? <Text style={styles.ltpMsg}>“{p.message}”</Text> : null}
+              {!p.is_mine && (
+                <View style={styles.actionRow}>
+                  <Pressable testID={`ltp-profile-${p.id}`} onPress={() => router.push(`/athlete/${p.user_id}`)} style={styles.miniBtn}><Text style={styles.miniText}>PROFILE</Text></Pressable>
+                  <Pressable testID={`ltp-ask-${p.id}`} onPress={() => askToPlay(p.user_id, p.sport_id)} style={[styles.miniBtn, { borderColor: colors.brand }]}><Text style={[styles.miniText, { color: colors.brand }]}>RESPOND</Text></Pressable>
+                  <Pressable testID={`ltp-msg-${p.id}`} onPress={() => router.push(`/messages/${p.user_id}`)} style={styles.miniBtn}><Text style={styles.miniText}>MESSAGE</Text></Pressable>
+                </View>
+              )}
+            </View>
+          ))
+        ) : (
+          <View style={{ gap: spacing.md }}>
+            <Text style={styles.groupLabel}>INCOMING</Text>
+            {reqs.incoming.length === 0 ? <Empty t="No incoming requests" /> :
+              reqs.incoming.map((r) => (
+                <View key={r.id} style={styles.card} testID={`req-in-${r.id}`}>
+                  <Text style={styles.name}>{r.other_name} · <Text style={{ color: sportAccent(r.sport_id) }}>{r.sport_id}</Text></Text>
+                  <Text style={styles.meta}>{r.status.toUpperCase()}{r.message ? ` · “${r.message}”` : ""}</Text>
+                  {r.status === "pending" && (
+                    <View style={styles.actionRow}>
+                      <Pressable testID={`accept-${r.id}`} onPress={() => reqAction(r.id, "accept")} style={[styles.miniBtn, { borderColor: colors.success }]}><Text style={[styles.miniText, { color: colors.success }]}>ACCEPT</Text></Pressable>
+                      <Pressable testID={`decline-${r.id}`} onPress={() => reqAction(r.id, "decline")} style={[styles.miniBtn, { borderColor: colors.error }]}><Text style={[styles.miniText, { color: colors.error }]}>DECLINE</Text></Pressable>
+                      <Pressable testID={`req-msg-${r.id}`} onPress={() => router.push(`/messages/${r.from_user_id}`)} style={styles.miniBtn}><Text style={styles.miniText}>MESSAGE</Text></Pressable>
+                    </View>
+                  )}
+                </View>
+              ))}
+            <Text style={styles.groupLabel}>OUTGOING</Text>
+            {reqs.outgoing.length === 0 ? <Empty t="No outgoing requests" /> :
+              reqs.outgoing.map((r) => (
+                <View key={r.id} style={styles.card} testID={`req-out-${r.id}`}>
+                  <Text style={styles.name}>{r.other_name} · <Text style={{ color: sportAccent(r.sport_id) }}>{r.sport_id}</Text></Text>
+                  <Text style={styles.meta}>{r.status.toUpperCase()}</Text>
+                  {r.status === "pending" && <Pressable testID={`cancel-${r.id}`} onPress={() => reqAction(r.id, "cancel")} style={[styles.miniBtn, { alignSelf: "flex-start", marginTop: 6 }]}><Text style={styles.miniText}>CANCEL</Text></Pressable>}
+                </View>
+              ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function Empty({ t }: { t: string }) {
+  return <View style={styles.empty}><Text style={styles.emptyText}>{t}</Text></View>;
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md },
+  title: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 32, color: colors.onSurface, letterSpacing: 2 },
+  newBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.brand, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill },
+  newBtnText: { ...font.textBold, letterSpacing: 1, fontSize: 10, color: "#0B0D12" },
+  tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border },
+  tab: { flex: 1, paddingVertical: spacing.md, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabText: { ...font.textBold, letterSpacing: 0.5, fontSize: 11, color: colors.onSurfaceTertiary },
+  scroll: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
+  feedCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 4, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
+  feedIcon: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  feedTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  feedAuthor: { ...font.textBold, fontSize: 12, color: colors.onSurfaceSecondary, flex: 1 },
+  feedTime: { ...font.textBold, fontSize: 10, color: colors.onSurfaceTertiary, marginLeft: spacing.sm },
+  feedHeadline: { ...font.textBold, fontSize: 15, color: colors.onSurface, marginTop: 2 },
+  feedSub: { ...font.text, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: 1 },
+  feedResult: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface },
+  feedResultText: { ...font.textMedium, fontSize: 13, color: colors.onSurface },
+  feedResultScore: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 18, color: colors.onSurfaceSecondary, letterSpacing: 1, marginTop: 2 },
+  card: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, gap: 6 },
+  name: { ...font.textBold, fontSize: 15, color: colors.onSurface },
+  meta: { ...font.text, fontSize: 12, color: colors.onSurfaceSecondary },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: 8, flexWrap: "wrap" },
+  miniBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  miniText: { ...font.textBold, letterSpacing: 1, fontSize: 10, color: colors.onSurfaceSecondary },
+  ltpHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  sportDot: { width: 8, height: 8, borderRadius: 4 },
+  ltpSport: { ...font.textBold, letterSpacing: 2, fontSize: 11, color: colors.onSurface },
+  ltpBy: { ...font.text, fontSize: 12, color: colors.onSurfaceSecondary },
+  ltpWhen: { ...font.textMedium, fontSize: 13, color: colors.onSurface },
+  ltpMsg: { ...font.text, fontSize: 12, color: colors.onSurfaceSecondary, fontStyle: "italic" },
+  groupLabel: { ...font.textBold, letterSpacing: 2, fontSize: 10, color: colors.onSurfaceSecondary },
+  empty: { padding: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderStyle: "dashed" },
+  emptyText: { ...font.text, fontSize: 13, color: colors.onSurfaceTertiary },
+});
