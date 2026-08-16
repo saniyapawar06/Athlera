@@ -6,6 +6,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
 
 import { colors, spacing, radius, font } from "@/src/theme";
 import { useAuth } from "@/src/auth-context";
@@ -15,7 +16,7 @@ type Mode = "signin" | "signup";
 
 export default function AuthScreen() {
   const router = useRouter();
-  const { login, register, guest, loading, user } = useAuth();
+  const { login, register, guest, loginWithGoogle, loading, user } = useAuth();
   const [mode, setMode] = useState<Mode>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,12 +51,27 @@ export default function AuthScreen() {
     }
   };
 
-  // After successful login, user.onboarded decides route (handled above for signup).
+  const continueWithGoogle = async () => {
+    setErr(null);
+    try {
+      await loginWithGoogle();
+      // On web the page navigates away; on mobile the user state updates and
+      // the effect below routes based on onboarded.
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Google sign-in failed");
+    }
+  };
+
+  const continueWithApple = () => {
+    setErr("Sign in with Apple is available on the ATHLERA iOS App Store build.");
+  };
+
+  // Route once a user is present (covers email sign-in and Google sign-in).
   React.useEffect(() => {
-    if (user && mode === "signin") {
+    if (user) {
       router.replace(user.onboarded ? "/(tabs)" : "/onboarding/sports");
     }
-  }, [user, mode, router]);
+  }, [user, router]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]} testID="auth-screen">
@@ -147,6 +163,26 @@ export default function AuthScreen() {
           </View>
 
           <Pressable
+            testID="auth-continue-google"
+            onPress={continueWithGoogle}
+            style={({ pressed }) => [styles.social, pressed && { opacity: 0.85 }]}
+          >
+            <Ionicons name="logo-google" size={18} color={colors.onSurface} />
+            <Text style={styles.socialText}>CONTINUE WITH GOOGLE</Text>
+          </Pressable>
+
+          {Platform.OS === "ios" && (
+            <Pressable
+              testID="auth-continue-apple"
+              onPress={continueWithApple}
+              style={({ pressed }) => [styles.social, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="logo-apple" size={20} color={colors.onSurface} />
+              <Text style={styles.socialText}>CONTINUE WITH APPLE</Text>
+            </Pressable>
+          )}
+
+          <Pressable
             testID="auth-continue-guest"
             onPress={continueAsGuest}
             style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.85 }]}
@@ -196,5 +232,11 @@ const styles = StyleSheet.create({
     alignItems: "center", borderRadius: radius.md,
   },
   secondaryText: { ...font.textBold, color: colors.onSurface, letterSpacing: 2, fontSize: 13 },
+  social: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md,
+    borderRadius: radius.md, backgroundColor: colors.surfaceSecondary,
+  },
+  socialText: { ...font.textBold, color: colors.onSurface, letterSpacing: 1.5, fontSize: 13 },
   guestNote: { ...font.text, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: spacing.sm, lineHeight: 18 },
 });

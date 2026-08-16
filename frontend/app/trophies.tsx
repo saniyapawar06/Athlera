@@ -8,7 +8,8 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, radius, font } from "@/src/theme";
 import { api } from "@/src/api";
 import { AchievementBadge } from "@/src/components/AchievementBadge";
-import { CATEGORY_LABELS, CATEGORY_ORDER, Achievement } from "@/src/gamification";
+import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/src/gamification";
+import ProgressBar from "@/src/components/ProgressBar";
 
 export default function TrophiesScreen() {
   const router = useRouter();
@@ -24,28 +25,14 @@ export default function TrophiesScreen() {
 
   const grouped = useMemo(() => {
     const catalog: any[] = data?.catalog ?? [];
-    const unlocked: Achievement[] = data?.unlocked ?? [];
-    // For sport-scoped codes a user may hold multiple (per sport). Merge by category.
-    const unlockedByCode = new Map<string, Achievement[]>();
-    unlocked.forEach((u) => {
-      const arr = unlockedByCode.get(u.code) || [];
-      arr.push(u);
-      unlockedByCode.set(u.code, arr);
-    });
     const map: Record<string, any[]> = {};
-    catalog.forEach((c) => {
-      const holds = unlockedByCode.get(c.code);
-      const item = holds && holds.length
-        ? { ...c, ...holds[0], unlocked: true, count: holds.length }
-        : { ...c, unlocked: false };
-      (map[c.category] = map[c.category] || []).push(item);
-    });
+    catalog.forEach((c) => { (map[c.category] = map[c.category] || []).push(c); });
     return map;
   }, [data]);
 
-  const unlockedCount = data?.unlocked_count ?? 0;
+  const unlocked = data?.unlocked_count ?? 0;
   const total = data?.total ?? 0;
-  const pct = total > 0 ? Math.round((unlockedCount / total) * 100) : 0;
+  const pct = total > 0 ? unlocked / total : 0;
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]} testID="trophies-screen">
@@ -64,32 +51,26 @@ export default function TrophiesScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.brand} />}
         >
           <View style={styles.progressCard} testID="trophy-progress">
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: 6 }}>
               <Text style={styles.progressLabel}>ACHIEVEMENTS EARNED</Text>
-              <Text style={styles.progressValue}>{unlockedCount}<Text style={styles.progressMax}> / {total}</Text></Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${pct}%` }]} />
-              </View>
+              <Text style={styles.progressValue}>{unlocked}<Text style={styles.progressMax}> / {total}</Text></Text>
+              <ProgressBar progress={pct} color={colors.brand} />
             </View>
             <View style={styles.progressPct}>
               <Ionicons name="trophy" size={22} color={colors.brand} />
-              <Text style={styles.progressPctText}>{pct}%</Text>
+              <Text style={styles.progressPctText}>{Math.round(pct * 100)}%</Text>
             </View>
           </View>
 
           {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat, ci) => (
-            <Animated.View key={cat} entering={FadeInDown.delay(80 + ci * 60).duration(400)} style={styles.section}>
+            <Animated.View key={cat} entering={FadeInDown.delay(60 + ci * 50).duration(360)} style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>{(CATEGORY_LABELS[cat] || cat).toUpperCase()}</Text>
                 <View style={styles.sectionLine} />
-                <Text style={styles.sectionCount}>
-                  {grouped[cat].filter((x: any) => x.unlocked).length}/{grouped[cat].length}
-                </Text>
+                <Text style={styles.sectionCount}>{grouped[cat].filter((x: any) => x.unlocked).length}/{grouped[cat].length}</Text>
               </View>
               <View style={styles.grid}>
-                {grouped[cat].map((a: any) => (
-                  <AchievementBadge key={a.code} achievement={a} locked={!a.unlocked} />
-                ))}
+                {grouped[cat].map((a: any) => <AchievementBadge key={a.code} achievement={a} />)}
               </View>
             </Animated.View>
           ))}
@@ -106,10 +87,8 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
   progressCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 4, borderLeftColor: colors.brand, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary },
   progressLabel: { ...font.textBold, letterSpacing: 2, fontSize: 10, color: colors.onSurfaceSecondary },
-  progressValue: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 44, color: colors.onSurface },
+  progressValue: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 40, color: colors.onSurface },
   progressMax: { ...font.text, fontSize: 16, color: colors.onSurfaceTertiary },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceTertiary, marginTop: 4, overflow: "hidden" },
-  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },
   progressPct: { alignItems: "center", gap: 2 },
   progressPctText: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 22, color: colors.onSurface },
   section: { gap: spacing.sm },

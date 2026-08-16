@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, font, sportAccent, formatRating } from "@/src/theme";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth-context";
-import { tierColor } from "@/src/gamification";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -47,30 +46,14 @@ export default function ProfileScreen() {
               <Text style={styles.uasValue}>{data?.uas ?? 0}<Text style={styles.uasMax}> / 1000</Text></Text>
             </View>
 
-            {/* Trophy room */}
-            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>TROPHY ROOM</Text><View style={styles.line} /></View>
             <Pressable testID="profile-trophies-btn" onPress={() => router.push("/trophies")} style={styles.trophyCard}>
-              <View style={styles.trophyLeft}>
-                <Ionicons name="trophy" size={22} color={colors.brand} />
-                <View>
-                  <Text style={styles.trophyCount}>{data?.achievement_count ?? 0}<Text style={styles.trophyMax}> / {data?.achievement_total ?? 0}</Text></Text>
-                  <Text style={styles.trophyLabel}>ACHIEVEMENTS EARNED</Text>
-                </View>
+              <Ionicons name="trophy" size={22} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trophyCardTitle}>TROPHY ROOM</Text>
+                <Text style={styles.trophyCardSub}>{data?.gamification?.achievement_count ?? 0} of {data?.gamification?.achievement_total ?? 0} achievements earned</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
             </Pressable>
-            {(data?.recent_achievements ?? []).length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trophyStrip}>
-                {(data.recent_achievements as any[]).map((a) => (
-                  <View key={a.code + (a.sport_id || "")} style={[styles.trophyChip, { borderColor: tierColor(a.tier) + "AA" }]} testID={`profile-ach-${a.code}`}>
-                    <View style={[styles.trophyChipIcon, { borderColor: tierColor(a.tier) }]}>
-                      <Ionicons name={a.icon as any} size={15} color={tierColor(a.tier)} />
-                    </View>
-                    <Text style={styles.trophyChipTitle} numberOfLines={1}>{a.title}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
 
             <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>SPORTS & RATINGS</Text><View style={styles.line} /></View>
             {(data?.cards ?? []).map((c: any) => (
@@ -117,18 +100,12 @@ const styles = StyleSheet.create({
   username: { ...font.textMedium, fontSize: 12, color: colors.onSurfaceSecondary, letterSpacing: 1 },
   city: { ...font.text, fontSize: 12, color: colors.onSurfaceTertiary },
   uasBox: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, borderLeftWidth: 4, borderLeftColor: colors.brand },
-  trophyCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
-  trophyLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  trophyCount: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 28, color: colors.onSurface },
-  trophyMax: { ...font.text, fontSize: 13, color: colors.onSurfaceTertiary },
-  trophyLabel: { ...font.textBold, letterSpacing: 1.5, fontSize: 9, color: colors.onSurfaceSecondary },
-  trophyStrip: { gap: spacing.sm, paddingVertical: 2 },
-  trophyChip: { width: 120, gap: 4, padding: spacing.sm, borderWidth: 1, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
-  trophyChipIcon: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  trophyChipTitle: { ...font.textBold, fontSize: 11, color: colors.onSurface, marginTop: 2 },
   uasLabel: { ...font.textBold, letterSpacing: 3, fontSize: 10, color: colors.onSurfaceSecondary },
   uasValue: { ...font.display, fontFamily: "BarlowCondensed", fontSize: 52, color: colors.onSurface },
   uasMax: { ...font.text, fontSize: 16, color: colors.onSurfaceTertiary },
+  trophyCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
+  trophyCardTitle: { ...font.textBold, letterSpacing: 1.5, fontSize: 13, color: colors.onSurface },
+  trophyCardSub: { ...font.text, fontSize: 11, color: colors.onSurfaceTertiary, marginTop: 2 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm },
   sectionTitle: { ...font.textBold, letterSpacing: 3, fontSize: 11, color: colors.onSurfaceSecondary },
   line: { flex: 1, height: 1, backgroundColor: colors.border },

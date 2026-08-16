@@ -1,26 +1,30 @@
 export const colors = {
-  surface: "#0B0D12",
-  onSurface: "#F3F4F6",
-  surfaceSecondary: "#151821",
-  onSurfaceSecondary: "#9CA3AF",
-  surfaceTertiary: "#1F232F",
-  onSurfaceTertiary: "#6B7280",
-  brand: "#E62E2D",
-  brandSecondary: "#FF5C5C",
+  surface: "#0A0E27",
+  onSurface: "#F4F6FF",
+  surfaceSecondary: "#151B3D",
+  onSurfaceSecondary: "#AEB6DE",
+  surfaceTertiary: "#20285A",
+  onSurfaceTertiary: "#7C86B8",
+  brand: "#7C5CFF",
+  brandSecondary: "#A88BFF",
   onBrand: "#FFFFFF",
-  border: "#242938",
-  borderStrong: "#374151",
-  divider: "#1F232F",
-  success: "#10B981",
-  warning: "#F59E0B",
-  error: "#EF4444",
-  info: "#374151",
+  border: "#26305F",
+  borderStrong: "#3A4585",
+  divider: "#1A2148",
+  success: "#22C55E",
+  warning: "#F5A623",
+  error: "#FF5A6A",
+  info: "#20285A",
   sportTennis: "#DFFF00",
   sportPadel: "#FF6B6B",
   sportSquash: "#00FA9A",
   sportBadminton: "#FFC107",
   sportPickleball: "#39FF14",
 } as const;
+
+// A subtle 2-stop brand gradient for hero surfaces / CTAs.
+export const brandGradient = ["#7C5CFF", "#4C2FD6"] as const;
+export const surfaceGradient = ["#131A3E", "#0A0E27"] as const;
 
 export const sportAccent = (id: string): string => {
   switch (id) {
@@ -49,11 +53,11 @@ export const font = {
 };
 
 export const SPORT_ICONS: Record<string, string> = {
-  squash: "🎾",
-  padel: "🎾",
-  tennis: "🎾",
-  badminton: "🏸",
-  pickleball: "🥒",
+  squash: "ellipse-outline",
+  padel: "grid-outline",
+  tennis: "tennisball-outline",
+  badminton: "sparkles-outline",
+  pickleball: "disc-outline",
 };
 
 export const formatRating = (rating: number, decimals: number): string => {

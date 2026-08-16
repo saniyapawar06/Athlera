@@ -8,7 +8,6 @@ import { colors, font, spacing, radius } from "@/src/theme";
 import { tierColor, Achievement, CelebLevel } from "@/src/gamification";
 
 const { width, height } = Dimensions.get("window");
-
 const PALETTE = ["#E62E2D", "#DFFF00", "#00FA9A", "#FFC107", "#39FF14", "#FF6B6B", "#FFFFFF"];
 
 function Piece({ index }: { index: number }) {
@@ -30,10 +29,7 @@ function Piece({ index }: { index: number }) {
   }));
   const color = PALETTE[index % PALETTE.length];
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[{ position: "absolute", left: startX, top: 0, width: 8, height: 14, borderRadius: 2, backgroundColor: color }, style]}
-    />
+    <Animated.View pointerEvents="none" style={[{ position: "absolute", left: startX, top: 0, width: 8, height: 14, borderRadius: 2, backgroundColor: color }, style]} />
   );
 }
 
@@ -45,24 +41,19 @@ export function Confetti({ count = 70 }: { count?: number }) {
   );
 }
 
-/** Quick number tick from `from` to `to` (~600ms). Premium, fast, not childish. */
+/** Quick number tick from `from` to `to` (~600ms). */
 function AnimatedNumber({ from, to, color, decimals }: { from: number; to: number; color: string; decimals: number }) {
   const [val, setVal] = useState(from);
   useEffect(() => {
-    const steps = 22;
-    const dur = 620;
-    let i = 0;
+    const steps = 22; const dur = 600; let i = 0;
     const t = setInterval(() => {
-      i += 1;
-      const p = i / steps;
-      const eased = 1 - Math.pow(1 - p, 3);
+      i += 1; const p = i / steps; const eased = 1 - Math.pow(1 - p, 3);
       setVal(from + (to - from) * eased);
       if (i >= steps) { setVal(to); clearInterval(t); }
     }, dur / steps);
     return () => clearInterval(t);
   }, [from, to]);
-  const shown = decimals > 0 ? val.toFixed(decimals) : String(Math.round(val));
-  return <Text style={[styles.ratingVal, { color }]}>{shown}</Text>;
+  return <Text style={[styles.ratingVal, { color }]}>{decimals > 0 ? val.toFixed(decimals) : String(Math.round(val))}</Text>;
 }
 
 type Props = {
@@ -75,17 +66,17 @@ type Props = {
   tag?: string | null;
   level?: CelebLevel;
   accent?: string;
+  subMessage?: string | null;
   achievements?: Achievement[];
   formDots?: string[];
-  subMessage?: string | null;
   onShare?: () => void;
   shared?: boolean;
   onContinue: () => void;
 };
 
 export function ResultOverlay({
-  visible, won, headline, before, after, delta, tag, level = "milestone",
-  accent, achievements = [], formDots = [], subMessage, onShare, shared, onContinue,
+  visible, won, headline, before, after, delta, tag,
+  level = "milestone", accent, subMessage, achievements = [], formDots = [], onShare, shared, onContinue,
 }: Props) {
   const scale = useSharedValue(0.6);
   const startFrom = useRef<number | null>(null);
@@ -121,12 +112,12 @@ export function ResultOverlay({
             <View style={styles.ratingRow}>
               <View style={styles.ratingCol}>
                 <Text style={styles.ratingLabel}>BEFORE</Text>
-                <Text style={styles.ratingValMuted}>{decimals > 0 ? before.toFixed(decimals) : Math.round(before)}</Text>
+                <Text style={styles.ratingValMuted}>{decimals > 0 ? Number(before).toFixed(decimals) : Math.round(Number(before))}</Text>
               </View>
               <Text style={[styles.arrow, { color: brandAccent }]}>→</Text>
               <View style={styles.ratingCol}>
                 <Text style={styles.ratingLabel}>NOW</Text>
-                <AnimatedNumber from={startFrom.current!} to={after} color={brandAccent} decimals={decimals} />
+                <AnimatedNumber from={startFrom.current!} to={Number(after)} color={brandAccent} decimals={decimals} />
               </View>
               {delta != null && (
                 <View style={styles.deltaBox}>
@@ -166,12 +157,7 @@ export function ResultOverlay({
 
           <View style={styles.actions}>
             {onShare && (
-              <Pressable
-                testID="result-share-btn"
-                onPress={onShare}
-                disabled={shared}
-                style={[styles.shareBtn, { borderColor: brandAccent }, shared && { opacity: 0.6 }]}
-              >
+              <Pressable testID="result-share-btn" onPress={onShare} disabled={shared} style={[styles.shareBtn, { borderColor: brandAccent }, shared && { opacity: 0.6 }]}>
                 <Ionicons name={shared ? "checkmark" : "share-social-outline"} size={16} color={brandAccent} />
                 <Text style={[styles.shareText, { color: brandAccent }]}>{shared ? "SHARED" : "SHARE"}</Text>
               </Pressable>

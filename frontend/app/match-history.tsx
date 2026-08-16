@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 const SPORTS = ["all", "squash", "padel", "tennis", "badminton", "pickleball"];
 const RESULTS = ["all", "win", "loss"];
 const SOURCES = ["all", "live", "manual"];
+const TYPES = ["all", "oneoff", "league", "knockout"];
 
 export default function MatchHistoryScreen() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function MatchHistoryScreen() {
   const [sport, setSport] = useState<string>((params.sport_id as string) || "all");
   const [result, setResult] = useState("all");
   const [source, setSource] = useState("all");
+  const [type, setType] = useState("all");
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,10 +28,11 @@ export default function MatchHistoryScreen() {
       if (sport !== "all") p.sport_id = sport;
       if (result !== "all") p.result = result;
       if (source !== "all") p.source = source;
+      if (type !== "all") p.type = type;
       const r = await api.matchHistory(p);
       setMatches(r.matches || []);
     } finally { setLoading(false); }
-  }, [sport, result, source]);
+  }, [sport, result, source, type]);
   useEffect(() => { load(); }, [load]);
 
   const ChipRow = ({ items, value, onChange, tid }: any) => (
@@ -50,6 +53,7 @@ export default function MatchHistoryScreen() {
       </View>
       <View style={styles.filters}>
         <ChipRow items={SPORTS} value={sport} onChange={setSport} tid="mh-sport" />
+        <ChipRow items={TYPES} value={type} onChange={setType} tid="mh-type" />
         <ChipRow items={RESULTS} value={result} onChange={setResult} tid="mh-result" />
         <ChipRow items={SOURCES} value={source} onChange={setSource} tid="mh-source" />
       </View>
@@ -57,7 +61,7 @@ export default function MatchHistoryScreen() {
         {loading ? <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} /> :
           matches.length === 0 ? <View style={styles.empty}><Text style={styles.emptyText}>No matches for these filters</Text></View> :
           matches.map((m) => (
-            <View key={m.id} style={styles.row} testID={`mh-row-${m.id}`}>
+            <Pressable key={m.id} onPress={() => router.push(`/match/${m.id}`)} style={styles.row} testID={`mh-row-${m.id}`}>
               <View style={[styles.wl, { backgroundColor: m.won ? colors.success : colors.error }]}><Text style={styles.wlText}>{m.won ? "W" : "L"}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.opp}>vs {m.opponent_name} · <Text style={{ color: sportAccent(m.sport_id) }}>{m.sport.name}</Text></Text>
@@ -67,11 +71,12 @@ export default function MatchHistoryScreen() {
               <View style={{ alignItems: "flex-end" }}>
                 {m.rating_delta != null && <Text style={[styles.delta, { color: m.rating_delta >= 0 ? colors.success : colors.error }]}>{m.rating_delta >= 0 ? "+" : ""}{m.rating_delta}</Text>}
                 <View style={styles.badges}>
-                  <Text style={styles.src}>{(m.source || "manual").toUpperCase()}</Text>
+                  <Text style={styles.src}>{(m.comp_type && m.comp_type !== "oneoff" ? m.comp_type : m.source || "manual").toUpperCase()}</Text>
                   {m.competition_id && <Text style={styles.comp}>COMP</Text>}
                 </View>
+                <Ionicons name="chevron-forward" size={14} color={colors.onSurfaceTertiary} />
               </View>
-            </View>
+            </Pressable>
           ))}
       </ScrollView>
     </SafeAreaView>

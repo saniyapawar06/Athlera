@@ -23,8 +23,10 @@ SPORT_RULES: dict[str, dict[str, Any]] = {
         "supports_doubles": False,
         "server_model": "rally_winner",      # winner of rally serves next (PARS)
         "referee_events": ["rally_won", "let", "stroke", "no_let", "tin", "out", "service_fault"],
-        "point_events": {"rally_won": "server_or_side", "stroke": "receiver", "tin": "opponent", "out": "opponent", "service_fault": "opponent"},
-        "replay_events": ["let"], "noop_events": ["no_let"],
+        # Referee event side is the striker/server involved in the call. A
+        # Stroke and No Let award the rally to the receiving opponent.
+        "point_events": {"rally_won": "server_or_side", "stroke": "receiver", "no_let": "opponent", "tin": "opponent", "out": "opponent", "service_fault": "opponent"},
+        "replay_events": ["let"], "noop_events": [],
     },
     "badminton": {
         "kind": "point",
@@ -61,7 +63,7 @@ SPORT_RULES: dict[str, dict[str, Any]] = {
         "sets_to": 6, "set_win_by": 2, "tiebreak_at": 6, "tiebreak_to": 7, "tiebreak_win_by": 2,
         "best_of_options": [1, 3], "default_best_of": 3,
         "supports_doubles": True,
-        "golden_point_option": True,         # selectable Advantage vs Golden Point
+        "golden_point_option": True,         # selectable Advantage / Golden / Star Point
         "referee_events": ["point_won", "ace", "double_fault", "service_let", "winner", "forced_error", "unforced_error"],
         "point_events": {"point_won": "side", "ace": "server", "double_fault": "receiver", "winner": "side", "forced_error": "opponent", "unforced_error": "opponent"},
         "replay_events": ["service_let"], "noop_events": [],
@@ -85,7 +87,10 @@ def new_state(sport_id: str, sides: list[dict], best_of: int, doubles: bool,
         "status": "in_progress",
         "winner_side": None,
         "log": [],
-        "options": {"golden_point": bool(options.get("golden_point", False))},
+        "options": {
+            "golden_point": bool(options.get("golden_point", False)),
+            "padel_scoring": options.get("padel_scoring", "advantage"),
+        },
     }
     if rules["kind"] == "point":
         st["points"] = [0, 0]
@@ -193,7 +198,10 @@ def _check_match_over_point(st: dict) -> None:
 def _advance_set_sport(st: dict, side: int) -> None:
     sid = st["sport_id"]
     rules = SPORT_RULES[sid]
-    golden = st["options"].get("golden_point") and rules.get("golden_point_option")
+    mode = st["options"].get("padel_scoring", "advantage")
+    golden = rules.get("golden_point_option") and (
+        st["options"].get("golden_point") or mode in ("golden_point", "star_point")
+    )
 
     if st["tiebreak"]:
         st["tb"][side] += 1
@@ -295,6 +303,10 @@ def display(st: dict) -> dict:
         "games_won": st["games_won"], "completed_games": st["games"],
         "server_side": st.get("server_side"), "best_of": st["best_of"], "doubles": st["doubles"],
         "kind": rules["kind"],
+        "event_log": [
+            {"seq": e["seq"], "type": e["type"], "side": e.get("side"), "scored_side": e.get("scored_side"), "note": e.get("note")}
+            for e in st.get("log", [])[-30:]
+        ],
     }
     if rules["kind"] == "point":
         out["points"] = st["points"]
@@ -317,6 +329,7 @@ def display(st: dict) -> dict:
                 return POINT_LABELS.get(st["p"][i], "40")
             out["points_display"] = [lbl(0), lbl(1)]
         out["cur_games"] = st["cur_games"]
+        out["scoring_mode"] = st["options"].get("padel_scoring", "advantage")
     return out
 
 

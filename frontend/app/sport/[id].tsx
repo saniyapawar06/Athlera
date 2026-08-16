@@ -144,7 +144,7 @@ export default function SportDetailScreen() {
             <View style={{ gap: spacing.sm }}>
               {matches.length === 0 ? <View style={styles.empty}><Text style={styles.emptyTitle}>No matches yet</Text><Text style={styles.emptySub}>Record or live-score a match.</Text></View> :
                 matches.map((m) => (
-                  <View key={m.id} style={styles.matchRow} testID={`match-row-${m.id}`}>
+                  <Pressable key={m.id} onPress={() => router.push(`/match/${m.id}`)} style={styles.matchRow} testID={`match-row-${m.id}`}>
                     <View style={[styles.wl, { backgroundColor: m.won ? colors.success : colors.error }]}><Text style={styles.wlText}>{m.won ? "W" : "L"}</Text></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.matchOpp}>vs {m.opponent_name}</Text>
@@ -154,7 +154,7 @@ export default function SportDetailScreen() {
                       {m.rating_delta != null && <Text style={[styles.matchDelta, { color: m.rating_delta >= 0 ? colors.success : colors.error }]}>{m.rating_delta >= 0 ? "+" : ""}{m.rating_delta}</Text>}
                       <Text style={styles.matchSrc}>{(m.source || "manual").toUpperCase()}</Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               <Pressable testID="view-all-history" onPress={() => router.push(`/match-history?sport_id=${sid}`)} style={styles.linkBtn}><Text style={styles.linkText}>VIEW FULL HISTORY & FILTERS →</Text></Pressable>
             </View>

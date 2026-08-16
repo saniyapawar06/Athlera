@@ -26,7 +26,6 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "SPORTS",
-          tabBarButtonTestID: "tab-sports",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "trophy" : "trophy-outline"} size={22} color={color} />
           ),
@@ -36,7 +35,6 @@ export default function TabsLayout() {
         name="compete"
         options={{
           title: "COMPETE",
-          tabBarButtonTestID: "tab-compete",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "flame" : "flame-outline"} size={22} color={color} />
           ),
@@ -46,20 +44,18 @@ export default function TabsLayout() {
         name="score"
         options={{
           title: "SCORE",
-          tabBarButtonTestID: "tab-score",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color, focused }) => (
             <View style={styles.scoreBtn}>
-              <Ionicons name="add" size={26} color={colors.onBrand} />
+              <Ionicons name="tennisball" size={22} color={colors.onBrand} />
             </View>
           ),
-          tabBarLabel: () => null,
+          tabBarLabelStyle: { ...font.textBold, letterSpacing: 1, fontSize: 10, color: colors.brand },
         }}
       />
       <Tabs.Screen
         name="social"
         options={{
           title: "SOCIAL",
-          tabBarButtonTestID: "tab-social",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "people" : "people-outline"} size={22} color={color} />
           ),
@@ -69,7 +65,6 @@ export default function TabsLayout() {
         name="rankings"
         options={{
           title: "RANKINGS",
-          tabBarButtonTestID: "tab-rankings",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "podium" : "podium-outline"} size={22} color={color} />
           ),

@@ -32,11 +32,11 @@ export default function RootLayout() {
   if (!appLoaded && !appError) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0B0D12" }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0E27" }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <StatusBar barStyle="light-content" backgroundColor="#0B0D12" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0B0D12" } }} />
+          <StatusBar barStyle="light-content" backgroundColor="#0A0E27" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A0E27" } }} />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

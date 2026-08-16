@@ -51,6 +51,10 @@ export const api = {
       method: "POST", body: JSON.stringify({ email, password }),
     }),
   guest: () => request<{ access_token: string; user: any }>("/auth/guest", { method: "POST" }),
+  authSession: (session_id: string) =>
+    request<{ access_token: string; user: any }>("/auth/session", {
+      method: "POST", body: JSON.stringify({ session_id }),
+    }),
   me: () => request<any>("/auth/me"),
   logout: () => request("/auth/logout", { method: "POST" }),
 
@@ -82,15 +86,28 @@ export const api = {
     request<any>("/matches/submit", { method: "POST", body: JSON.stringify(payload) }),
   matchesMine: () => request<any>("/matches/mine"),
 
-  events: () => request<any>("/events/upcoming"),
+  events: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<any>(`/events/upcoming${qs ? `?${qs}` : ""}`);
+  },
+  eventDetail: (id: string) => request<any>(`/events/${id}`),
+  eventCreate: (payload: any) => request<any>("/events/create", { method: "POST", body: JSON.stringify(payload) }),
+  eventRegister: (id: string, payload: { name: string; email?: string; phone?: string; notes?: string }) =>
+    request<any>(`/events/${id}/register`, { method: "POST", body: JSON.stringify(payload) }),
+  eventPayMockConfirm: (id: string, registration_id: string) =>
+    request<any>(`/events/${id}/pay/mock-confirm`, { method: "POST", body: JSON.stringify({ registration_id }) }),
+  paymentVerify: (payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
+    request<any>(`/payments/verify`, { method: "POST", body: JSON.stringify(payload) }),
+  eventWithdraw: (id: string) => request<any>(`/events/${id}/withdraw`, { method: "POST" }),
   feed: () => request<any>("/social/feed"),
-
-  // --- gamification ---
+  feedLike: (item_id: string) => request<any>(`/social/feed/${item_id}/like`, { method: "POST" }),
+  feedComments: (item_id: string) => request<any>(`/social/feed/${item_id}/comments`),
+  feedComment: (item_id: string, text: string) =>
+    request<any>(`/social/feed/${item_id}/comment`, { method: "POST", body: JSON.stringify({ text }) }),
+  matchDetail: (id: string) => request<any>(`/matches/${id}`),
   achievements: () => request<any>("/me/achievements"),
-  shareToFeed: (payload: {
-    kind: string; headline: string; subtext?: string; icon?: string;
-    sport_id?: string; achievement_code?: string;
-  }) => request<any>("/social/share", { method: "POST", body: JSON.stringify(payload) }),
+  shareToFeed: (payload: { kind: string; headline: string; subtext?: string; icon?: string; sport_id?: string }) =>
+    request<any>("/social/share", { method: "POST", body: JSON.stringify(payload) }),
 
   // --- sport extras ---
   ensureSport: (sport_id: string) =>
@@ -114,14 +131,27 @@ export const api = {
   compDetail: (cid: string) => request<any>(`/competitions/${cid}`),
   compRegister: (cid: string) => request<any>(`/competitions/${cid}/register`, { method: "POST" }),
   compWithdraw: (cid: string) => request<any>(`/competitions/${cid}/withdraw`, { method: "POST" }),
+  compAddMember: (cid: string, user_id: string) => request<any>(`/competitions/${cid}/members`, { method: "POST", body: JSON.stringify({ user_id }) }),
+  compRemoveMember: (cid: string, user_id: string) => request<any>(`/competitions/${cid}/members/${user_id}`, { method: "DELETE" }),
   compGenerate: (cid: string) => request<any>(`/competitions/${cid}/generate-fixtures`, { method: "POST" }),
+  compAddFixture: (cid: string, payload: { side0_user_ids: string[]; side1_user_ids: string[]; scheduled_at?: string | null }) =>
+    request<any>(`/competitions/${cid}/fixtures`, { method: "POST", body: JSON.stringify(payload) }),
+  fixtureRemove: (fid: string) => request<any>(`/fixtures/${fid}`, { method: "PATCH", body: JSON.stringify({ action: "remove" }) }),
   fixtureManualResult: (fid: string, games: number[][]) =>
     request<any>(`/fixtures/${fid}/manual-result`, { method: "POST", body: JSON.stringify({ games }) }),
+  fixtureUpdate: (fid: string, payload: any) => request<any>(`/fixtures/${fid}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   // --- social ---
   ltpCreate: (payload: any) => request<any>("/ltp/create", { method: "POST", body: JSON.stringify(payload) }),
   ltpList: (sport_id?: string) => request<any>(`/ltp/list${sport_id ? `?sport_id=${sport_id}` : ""}`),
-  nearby: (sport_id?: string) => request<any>(`/social/nearby${sport_id ? `?sport_id=${sport_id}` : ""}`),
+  nearby: (params: { sport_id?: string; city?: string; near_city?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (params.sport_id) p.set("sport_id", params.sport_id);
+    if (params.city) p.set("city", params.city);
+    if (params.near_city) p.set("near_city", params.near_city);
+    const qs = p.toString();
+    return request<any>(`/social/nearby${qs ? `?${qs}` : ""}`);
+  },
   playRequestCreate: (payload: any) => request<any>("/play-requests/create", { method: "POST", body: JSON.stringify(payload) }),
   playRequestsMine: () => request<any>("/play-requests/mine"),
   playRequestAction: (request_id: string, action: string) =>

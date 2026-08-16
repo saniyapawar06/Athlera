@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.athleteratings.xjrnon",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Upload a screenshot to verify your rating"
+        "NSPhotoLibraryUsageDescription": "Upload a screenshot to verify your rating",
+        "NSLocationWhenInUseUsageDescription": "Find nearby players and events"
       }
     },
     "android": {
@@ -22,7 +23,10 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.athleteratings.xjrnon",
-      "permissions": ["READ_MEDIA_IMAGES"]
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +43,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

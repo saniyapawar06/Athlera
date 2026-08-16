@@ -45,7 +45,7 @@ export default function MessageThreadScreen() {
               return (
                 <View key={m.id} style={[styles.bubbleRow, { justifyContent: mine ? "flex-end" : "flex-start" }]}>
                   <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-                    <Text style={[styles.bubbleText, mine && { color: "#0B0D12" }]}>{m.text}</Text>
+                    <Text style={[styles.bubbleText, mine && { color: colors.onBrand }]}>{m.text}</Text>
                   </View>
                 </View>
               );
@@ -54,7 +54,7 @@ export default function MessageThreadScreen() {
         )}
         <View style={styles.inputRow}>
           <TextInput testID="msg-input" value={text} onChangeText={setText} placeholder="Message…" placeholderTextColor={colors.onSurfaceTertiary} style={styles.input} onSubmitEditing={send} />
-          <Pressable testID="msg-send" onPress={send} style={styles.sendBtn}><Ionicons name="send" size={18} color="#0B0D12" /></Pressable>
+          <Pressable testID="msg-send" onPress={send} style={styles.sendBtn}><Ionicons name="send" size={18} color={colors.onBrand} /></Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
