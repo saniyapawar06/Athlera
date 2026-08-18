@@ -1710,6 +1710,7 @@ async def competition_create(body: CompetitionCreateIn, u: dict = Depends(curren
         "points_win": body.points_win, "points_loss": body.points_loss,
         "playoff_qualifiers": body.playoff_qualifiers, "max_participants": body.max_participants,
         "organiser_id": u["id"], "status": "registration_open", "fixtures_generated": False,
+        "draw_confirmed": False,
         "created_at": now_utc(),
     }
     await DB.competitions.insert_one(dict(doc))
@@ -1914,6 +1915,62 @@ async def competition_add_fixture(cid: str, body: AddFixtureIn, u: dict = Depend
     })
     await DB.competitions.update_one({"id": cid}, {"$set": {"fixtures_generated": True, "status": "in_progress"}})
     return {"ok": True, "fixture_id": fid}
+
+
+@api.post("/competitions/{cid}/confirm-draw")
+async def competition_confirm_draw(cid: str, u: dict = Depends(current_user)):
+    """Finalise a manual knockout draw: add byes for unplaced players, size the
+    bracket to the actual matchup count, then let winner progression build the rest."""
+    c = await DB.competitions.find_one({"id": cid}, {"_id": 0})
+    if not c or c["organiser_id"] != u["id"]:
+        raise HTTPException(403, "Only the organiser can confirm the draw")
+    if c["type"] != "knockout":
+        raise HTTPException(400, "Only knockouts have a draw")
+    if c.get("draw_confirmed"):
+        return {"ok": True, "already": True}
+    round1 = await DB.fixtures.find({"competition_id": cid, "round": 1}, {"_id": 0}).sort("index", 1).to_list(200)
+    if not round1:
+        raise HTTPException(400, "Add at least one first-round matchup")
+    placed = {uid for f in round1 for s in f["sides"] for uid in s["user_ids"]}
+    members = await DB.competition_members.find({"competition_id": cid, "status": "approved", "role": {"$ne": "organiser_only"}}, {"_id": 0}).to_list(200)
+    idx = round1[-1]["index"] + 1
+    for m in members:
+        if m["user_id"] not in placed:
+            await DB.fixtures.insert_one({
+                "id": str(uuid.uuid4()), "competition_id": cid, "round": 1, "index": idx,
+                "sides": [{"side": 0, "user_ids": [m["user_id"]]}, {"side": 1, "user_ids": []}],
+                "status": "bye", "winner_side": 0, "score": None, "match_id": None,
+                "scheduled_at": None, "created_at": now_utc(),
+            })
+            idx += 1
+    # bracket depth reflects the actual number of first-round fixtures
+    n1 = await DB.fixtures.count_documents({"competition_id": cid, "round": 1})
+    p2 = 1
+    while p2 < n1:
+        p2 *= 2
+    total_rounds = 1
+    t = p2
+    while t > 1:
+        total_rounds += 1; t //= 2
+    await DB.fixtures.update_many({"competition_id": cid, "round": 1}, {"$set": {"total_rounds": total_rounds}})
+    await DB.competitions.update_one({"id": cid}, {"$set": {"draw_confirmed": True, "fixtures_generated": True, "status": "in_progress"}})
+    await _create_next_knockout_round(cid, 1)
+    return {"ok": True, "total_rounds": total_rounds}
+
+
+@api.delete("/competitions/{cid}")
+async def competition_delete(cid: str, u: dict = Depends(current_user)):
+    """Organiser permanently deletes a competition and its fixtures/members.
+    Historical matches and ratings are intentionally left untouched."""
+    c = await DB.competitions.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Not found")
+    if c["organiser_id"] != u["id"]:
+        raise HTTPException(403, "Only the organiser can delete this competition")
+    await DB.fixtures.delete_many({"competition_id": cid})
+    await DB.competition_members.delete_many({"competition_id": cid})
+    await DB.competitions.delete_one({"id": cid})
+    return {"ok": True}
 
 
 def _round_robin(players: list[str], times: int) -> list[tuple[str, str]]:
@@ -2549,8 +2606,9 @@ async def play_request_create(body: PlayRequestIn, u: dict = Depends(current_use
 
 @api.get("/play-requests/mine")
 async def play_requests_mine(u: dict = Depends(current_user)):
-    incoming = await DB.play_requests.find({"to_user_id": u["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
-    outgoing = await DB.play_requests.find({"from_user_id": u["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    active = {"$in": ["pending", "accepted"]}
+    incoming = await DB.play_requests.find({"to_user_id": u["id"], "status": active}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    outgoing = await DB.play_requests.find({"from_user_id": u["id"], "status": active}, {"_id": 0}).sort("created_at", -1).to_list(50)
     all_uids = list({r["from_user_id"] for r in incoming} | {r["to_user_id"] for r in outgoing})
     users = await DB.users.find({"id": {"$in": all_uids}}, {"_id": 0, "id": 1, "display_name": 1}).to_list(200)
     umap = {x["id"]: x.get("display_name", "Athlete") for x in users}

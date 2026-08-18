@@ -36,6 +36,7 @@ export default function CompetitionDetailScreen() {
   const [pickA, setPickA] = useState<string | null>(null); const [pickB, setPickB] = useState<string | null>(null);
   const [fixAt, setFixAt] = useState<Date | null>(null);
   const [fxActions, setFxActions] = useState<any | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [matchupMode, setMatchupMode] = useState(false);
   const [mA, setMA] = useState<string | null>(null);
   const [mB, setMB] = useState<string | null>(null);
@@ -53,7 +54,12 @@ export default function CompetitionDetailScreen() {
   const isKO = c.type === "knockout";
   const champion = c.status === "complete" && c.champion_ids;
   const manualLeague = !isKO && c.fixture_mode === "manual";
+  const manualKO = isKO && c.draw_mode === "manual";
+  const drawConfirmed = !!c.draw_confirmed;
+  const buildingKO = manualKO && !drawConfirmed;
   const playerMembers = (c.members || []).filter((m: any) => m.role !== "organiser_only");
+  const placedIds = new Set<string>(isKO ? data.fixtures.filter((f: any) => f.round === 1).flatMap((f: any) => f.sides.flatMap((s: any) => s.user_ids)) : []);
+  const pickPool = playerMembers.filter((m: any) => !(isKO && placedIds.has(m.user_id)));
 
   const act = async (fn: () => Promise<any>) => {
     setBusy(true); setErr(null);
@@ -83,6 +89,14 @@ export default function CompetitionDetailScreen() {
     setAddFixtureOpen(false); setPickA(null); setPickB(null); setFixAt(null);
   };
 
+  const confirmDraw = () => act(() => api.compConfirmDraw(cid));
+
+  const doDelete = async () => {
+    setBusy(true); setErr(null);
+    try { await api.compDelete(cid); router.replace("/(tabs)/compete"); }
+    catch (e: any) { setErr(e?.message || "Could not delete"); setBusy(false); }
+  };
+
   const rounds = Array.from(new Set(data.fixtures.map((f: any) => f.round))).sort((a: any, b: any) => a - b);
   const hasFixtures = data.fixtures.length > 0;
 
@@ -108,17 +122,31 @@ export default function CompetitionDetailScreen() {
       {c.is_organiser && (
         <View style={styles.orgBar}>
           <Text style={styles.orgLabel}>ORGANISER</Text>
-          {!hasFixtures && (
-            <Pressable testID="add-players-btn" onPress={() => { setNewPlayers([]); setAddPlayersOpen(true); }} style={[styles.orgBtnOutline]}>
-              <Ionicons name="person-add" size={14} color={colors.onSurface} />
-              <Text style={styles.orgBtnOutlineText}>ADD PLAYERS</Text>
-            </Pressable>
-          )}
-          {!hasFixtures && !manualLeague && (
+          {!hasFixtures && !manualLeague && !manualKO && (
             <Pressable testID="generate-fixtures-btn" onPress={() => act(() => api.compGenerate(cid))} disabled={busy} style={[styles.orgBtn, { backgroundColor: accent }]}>
               <Text style={styles.orgBtnText}>{busy ? "…" : "GENERATE"}</Text>
             </Pressable>
           )}
+          {manualLeague && (
+            <Pressable testID="add-fixture-btn" onPress={() => { setPickA(null); setPickB(null); setFixAt(null); setErr(null); setAddFixtureOpen(true); }} style={[styles.orgBtn, { backgroundColor: accent }]}>
+              <Text style={styles.orgBtnText}>ADD FIXTURE</Text>
+            </Pressable>
+          )}
+          {buildingKO && (
+            <Pressable testID="add-matchup-btn" onPress={() => { setPickA(null); setPickB(null); setFixAt(null); setErr(null); setAddFixtureOpen(true); }} style={[styles.orgBtn, { backgroundColor: accent }]}>
+              <Text style={styles.orgBtnText}>ADD MATCHUP</Text>
+            </Pressable>
+          )}
+          {buildingKO && hasFixtures && (
+            <Pressable testID="confirm-draw-btn" onPress={confirmDraw} disabled={busy} style={[styles.orgBtnOutline, { borderColor: accent }]}>
+              <Ionicons name="checkmark-done" size={14} color={accent} />
+              <Text style={[styles.orgBtnOutlineText, { color: accent }]}>{busy ? "…" : "CONFIRM DRAW"}</Text>
+            </Pressable>
+          )}
+          <Pressable testID="delete-tournament-btn" onPress={() => setConfirmDelete(true)} style={[styles.orgBtnOutline, { borderColor: colors.error }]}>
+            <Ionicons name="trash" size={14} color={colors.error} />
+            <Text style={[styles.orgBtnOutlineText, { color: colors.error }]}>DELETE</Text>
+          </Pressable>
         </View>
       )}
 
@@ -150,7 +178,7 @@ export default function CompetitionDetailScreen() {
 
         {tab === "fixtures" && (
           <>
-            {!hasFixtures ? <Text style={styles.hint}>No fixtures yet.{c.is_organiser && !manualLeague ? " Generate them above." : ""}</Text> :
+            {!hasFixtures ? <Text style={styles.hint}>{buildingKO ? "No matchups yet. Tap Add Matchup to build the first round." : manualLeague ? "No fixtures yet. Tap Add Fixture to add one." : "No fixtures yet."}</Text> :
               isKO ? (
                 <View>
                   <Text style={styles.hint}>Swipe horizontally to follow the draw. {c.is_organiser ? "Tap an open fixture to schedule or score it." : ""}</Text>
@@ -232,11 +260,6 @@ export default function CompetitionDetailScreen() {
                   <Text style={styles.playerName}>{m.display_name}</Text>
                 </Pressable>
                 <Text style={styles.playerRole}>{String(m.role).toUpperCase()}</Text>
-                {c.is_organiser && m.role !== "organiser" && !hasFixtures && (
-                  <Pressable testID={`remove-player-${m.user_id}`} onPress={() => act(() => api.compRemoveMember(cid, m.user_id))} hitSlop={8} style={{ paddingLeft: spacing.sm }}>
-                    <Ionicons name="close-circle" size={20} color={colors.onSurfaceTertiary} />
-                  </Pressable>
-                )}
               </View>
             ))}
           </View>
@@ -296,21 +319,21 @@ export default function CompetitionDetailScreen() {
         </View>
       )}
 
-      {/* add fixture sheet (manual league) */}
+      {/* add fixture / matchup sheet (manual league & manual knockout) */}
       {addFixtureOpen && (
         <View style={styles.sheetTall} testID="add-fixture-sheet">
-          <Text style={styles.sheetTitle}>ADD FIXTURE</Text>
-          <Text style={styles.sheetSub}>Pick the two players for this match.</Text>
+          <Text style={styles.sheetTitle}>{isKO ? "ADD MATCHUP" : "ADD FIXTURE"}</Text>
+          <Text style={styles.sheetSub}>Pick exactly who plays who in this {isKO ? "first-round matchup" : "fixture"}.</Text>
           <ScrollView style={{ maxHeight: 360 }}>
-            <Text style={styles.label}>PLAYER A</Text>
-            {playerMembers.map((m: any) => (
+            <Text style={styles.label}>PLAYER 1</Text>
+            {pickPool.map((m: any) => (
               <Pressable key={`a-${m.user_id}`} testID={`af-a-${m.user_id}`} onPress={() => setPickA(m.user_id)} style={[styles.pickRow, pickA === m.user_id && { borderColor: accent, backgroundColor: colors.surfaceTertiary }]}>
                 <Ionicons name={pickA === m.user_id ? "radio-button-on" : "radio-button-off"} size={18} color={accent} />
                 <Text style={styles.pickName}>{m.display_name}</Text>
               </Pressable>
             ))}
-            <Text style={[styles.label, { marginTop: spacing.sm }]}>PLAYER B</Text>
-            {playerMembers.filter((m: any) => m.user_id !== pickA).map((m: any) => (
+            <Text style={[styles.label, { marginTop: spacing.sm }]}>PLAYER 2</Text>
+            {pickPool.filter((m: any) => m.user_id !== pickA).map((m: any) => (
               <Pressable key={`b-${m.user_id}`} testID={`af-b-${m.user_id}`} onPress={() => setPickB(m.user_id)} style={[styles.pickRow, pickB === m.user_id && { borderColor: accent, backgroundColor: colors.surfaceTertiary }]}>
                 <Ionicons name={pickB === m.user_id ? "radio-button-on" : "radio-button-off"} size={18} color={accent} />
                 <Text style={styles.pickName}>{m.display_name}</Text>
@@ -322,7 +345,7 @@ export default function CompetitionDetailScreen() {
           {err && <Text style={styles.err} testID="af-error">{err}</Text>}
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <Pressable testID="af-cancel" onPress={() => setAddFixtureOpen(false)} style={styles.ghost}><Text style={styles.ghostText}>CANCEL</Text></Pressable>
-            <Pressable testID="af-save" onPress={addFixture} disabled={busy} style={[styles.cta, { flex: 1, backgroundColor: accent }]}><Text style={styles.ctaText}>ADD FIXTURE</Text></Pressable>
+            <Pressable testID="af-save" onPress={addFixture} disabled={busy} style={[styles.cta, { flex: 1, backgroundColor: accent }]}><Text style={styles.ctaText}>{isKO ? "ADD MATCHUP" : "ADD FIXTURE"}</Text></Pressable>
           </View>
         </View>
       )}
@@ -342,6 +365,19 @@ export default function CompetitionDetailScreen() {
             <Ionicons name="radio" size={20} color={colors.brand} /><Text style={[styles.actionText, { color: colors.brand }]}>Start Live Score</Text>
           </Pressable>
           <Pressable testID="fxa-cancel" onPress={() => setFxActions(null)} style={styles.ghost}><Text style={styles.ghostText}>CLOSE</Text></Pressable>
+        </View>
+      )}
+
+      {/* delete confirmation */}
+      {confirmDelete && (
+        <View style={styles.sheet} testID="delete-confirm-sheet">
+          <Text style={styles.sheetTitle}>DELETE {c.type.toUpperCase()}?</Text>
+          <Text style={styles.sheetSub}>This permanently removes “{c.name}” and its {isKO ? "bracket" : "fixtures and standings"}. Player ratings and past matches are not affected. This cannot be undone.</Text>
+          {err && <Text style={styles.err} testID="del-error">{err}</Text>}
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Pressable testID="del-cancel" onPress={() => setConfirmDelete(false)} style={styles.ghost}><Text style={styles.ghostText}>CANCEL</Text></Pressable>
+            <Pressable testID="del-confirm" onPress={doDelete} disabled={busy} style={[styles.cta, { flex: 1, backgroundColor: colors.error }]}><Text style={[styles.ctaText, { color: "#FFFFFF" }]}>DELETE PERMANENTLY</Text></Pressable>
+          </View>
         </View>
       )}
 

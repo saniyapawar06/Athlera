@@ -11,6 +11,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { colors, spacing, radius, font, sportAccent, formatRating } from "@/src/theme";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth-context";
+import { cacheGet, cacheSet } from "@/src/utils/cache";
 
 type Phase = "sport" | "opponent" | "method" | "score" | "review";
 
@@ -86,13 +87,20 @@ export default function ScoreTab() {
 
   useEffect(() => {
     if (!sportId) { setOpponents([]); return; }
+    const key = `opp:${sportId}:${opponentQuery.trim().toLowerCase()}`;
+    const cached = cacheGet<any[]>(key);
+    if (cached) setOpponents(cached); // show cached results instantly, no blank wait
+    let alive = true;
     const t = setTimeout(async () => {
       try {
         const r = await api.opponents(sportId, opponentQuery);
-        setOpponents(r.opponents || []);
+        if (!alive) return;
+        const list = r.opponents || [];
+        setOpponents(list);
+        cacheSet(key, list);
       } catch { /* noop */ }
-    }, 200);
-    return () => clearTimeout(t);
+    }, cached ? 250 : 0);
+    return () => { alive = false; clearTimeout(t); };
   }, [sportId, opponentQuery]);
 
   const reset = () => {

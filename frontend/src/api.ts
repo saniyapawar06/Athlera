@@ -131,6 +131,8 @@ export const api = {
   compAddMember: (cid: string, user_id: string) => request<any>(`/competitions/${cid}/members`, { method: "POST", body: JSON.stringify({ user_id }) }),
   compRemoveMember: (cid: string, user_id: string) => request<any>(`/competitions/${cid}/members/${user_id}`, { method: "DELETE" }),
   compGenerate: (cid: string) => request<any>(`/competitions/${cid}/generate-fixtures`, { method: "POST" }),
+  compConfirmDraw: (cid: string) => request<any>(`/competitions/${cid}/confirm-draw`, { method: "POST" }),
+  compDelete: (cid: string) => request<any>(`/competitions/${cid}`, { method: "DELETE" }),
   compAddFixture: (cid: string, payload: { side0_user_ids: string[]; side1_user_ids: string[]; scheduled_at?: string | null }) =>
     request<any>(`/competitions/${cid}/fixtures`, { method: "POST", body: JSON.stringify(payload) }),
   fixtureRemove: (fid: string) => request<any>(`/fixtures/${fid}`, { method: "PATCH", body: JSON.stringify({ action: "remove" }) }),

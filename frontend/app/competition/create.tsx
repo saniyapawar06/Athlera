@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,11 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, font, sportAccent } from "@/src/theme";
 import { api } from "@/src/api";
 import PlayerMultiSelect, { SelectablePlayer } from "@/src/components/PlayerMultiSelect";
-import DateTimeField from "@/src/components/DateTimeField";
 
 const ALL_SPORTS = ["squash", "padel", "tennis", "badminton", "pickleball"];
-
-type BuiltFixture = { a: string; b: string; at: Date | null };
 
 export default function CompetitionCreateScreen() {
   const router = useRouter();
@@ -28,67 +25,32 @@ export default function CompetitionCreateScreen() {
 
   const isKO = type === "knockout";
   const manualLeague = !isKO && fixtureMode === "manual";
-  const isManual = manualLeague || (isKO && drawMode === "manual");
-
-  // ---- Manual fixture / matchup builder ----
-  const [built, setBuilt] = useState<BuiltFixture[]>([]);
-  const [fbA, setFbA] = useState<string | null>(null);
-  const [fbB, setFbB] = useState<string | null>(null);
-  const [fbAt, setFbAt] = useState<Date | null>(null);
-
-  const nameOf = (id: string) => players.find((p) => p.user_id === id)?.display_name || "Player";
-
-  // Keep the builder consistent with the selected player list.
-  useEffect(() => {
-    const ids = new Set(players.map((p) => p.user_id));
-    setBuilt((prev) => prev.filter((f) => ids.has(f.a) && ids.has(f.b)));
-    setFbA((cur) => (cur && ids.has(cur) ? cur : null));
-    setFbB((cur) => (cur && ids.has(cur) ? cur : null));
-  }, [players]);
-
-  const usedIds = new Set(built.flatMap((f) => [f.a, f.b]));
-  // For knockout each player appears in exactly one first-round matchup.
-  const availableFor = (slot: "a" | "b") =>
-    players.filter((p) => {
-      if (isKO && usedIds.has(p.user_id)) return false;
-      if (slot === "a" && p.user_id === fbB) return false;
-      if (slot === "b" && p.user_id === fbA) return false;
-      return true;
-    });
-
-  const addBuilt = () => {
-    setErr(null);
-    if (!fbA || !fbB) { setErr("Pick both players"); return; }
-    if (fbA === fbB) { setErr("Pick two different players"); return; }
-    setBuilt((prev) => [...prev, { a: fbA, b: fbB, at: fbAt }]);
-    setFbA(null); setFbB(null); setFbAt(null);
-  };
-  const removeBuilt = (idx: number) => setBuilt((prev) => prev.filter((_, i) => i !== idx));
+  const manualKO = isKO && drawMode === "manual";
+  const isManual = manualLeague || manualKO;
 
   const create = async () => {
     setErr(null);
     if (!name.trim()) { setErr("Give your competition a name"); return; }
     if (players.length < 2) { setErr("Add at least 2 players"); return; }
-    if (isManual && built.length < 1) { setErr(isKO ? "Add at least one first-round matchup" : "Add at least one fixture"); return; }
     setBusy(true);
     try {
-      const manual_pairs = isManual ? built.map((f) => [f.a, f.b]) : [];
-      const manual_schedule = isManual ? built.map((f) => (f.at ? f.at.toISOString() : null)) : [];
       const res = await api.compCreate({
         name: name.trim(), sport_id: sid, type, visibility: "private",
         matches_per_opponent: mpo,
         fixture_mode: isKO ? "automatic" : fixtureMode,
         draw_mode: isKO ? drawMode : "rating",
-        manual_pairs, manual_schedule,
+        manual_pairs: [], manual_schedule: [],
         max_participants: Math.max(16, players.length + 1),
       });
       const cid = res.competition.id;
-      // add selected players
       for (const p of players) {
         try { await api.compAddMember(cid, p.user_id); } catch { /* skip dupes */ }
       }
-      // build fixtures now (automatic round-robin / seeded draw, or the manual pairings)
-      try { await api.compGenerate(cid); } catch { /* organiser can retry from detail */ }
+      // Automatic leagues and automatic/random/seeded knockouts generate now.
+      // Manual leagues & manual knockouts build fixtures/matchups on the competition screen.
+      if (!isManual) {
+        try { await api.compGenerate(cid); } catch { /* organiser can retry from screen */ }
+      }
       router.replace(`/competition/${cid}`);
     } catch (e: any) { setErr(e?.message || "Could not create"); } finally { setBusy(false); }
   };
@@ -115,9 +77,8 @@ export default function CompetitionCreateScreen() {
             ))}
           </View>
 
-          <Field label="COMPETITION NAME">
-            <TextInput testID="cc-name" value={name} onChangeText={setName} placeholder={isKO ? "e.g. Club Knockout Cup" : "e.g. Winter League"} placeholderTextColor={colors.onSurfaceTertiary} style={styles.input} />
-          </Field>
+          <Text style={styles.label}>COMPETITION NAME</Text>
+          <TextInput testID="cc-name" value={name} onChangeText={setName} placeholder={isKO ? "e.g. Club Knockout Cup" : "e.g. Winter League"} placeholderTextColor={colors.onSurfaceTertiary} style={styles.input} />
 
           <Text style={styles.label}>FORMAT</Text>
           <View style={styles.row}>
@@ -151,6 +112,7 @@ export default function CompetitionCreateScreen() {
                   ))}</View>
                 </>
               )}
+              {manualLeague && <Text style={styles.hint}>You'll add fixtures on the league screen right after it's created.</Text>}
             </>
           )}
 
@@ -164,58 +126,8 @@ export default function CompetitionCreateScreen() {
                   </Pressable>
                 ))}
               </View>
+              {manualKO && <Text style={styles.hint}>You'll build the first-round matchups on the tournament screen right after it's created.</Text>}
             </>
-          )}
-
-          {/* Manual Add Fixture / Add Matchup builder (leagues & knockouts share the same flow) */}
-          {isManual && (
-            <View style={{ gap: spacing.sm }} testID="manual-builder">
-              <Text style={styles.label}>{isKO ? "FIRST-ROUND MATCHUPS" : "FIXTURES"} · {built.length} ADDED</Text>
-              {players.length < 2 && <Text style={styles.hint}>Select players above first.</Text>}
-
-              {built.map((f, idx) => (
-                <View key={idx} style={styles.builtRow} testID={`mb-fixture-${idx}`}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.builtText} numberOfLines={1}>{idx + 1}. {nameOf(f.a)}  vs  {nameOf(f.b)}</Text>
-                    <Text style={styles.builtWhen}>{f.at ? fmtWhen(f.at) : "UNSCHEDULED"}</Text>
-                  </View>
-                  <Pressable testID={`mb-remove-${idx}`} onPress={() => removeBuilt(idx)} hitSlop={8}>
-                    <Ionicons name="close-circle" size={22} color={colors.onSurfaceTertiary} />
-                  </Pressable>
-                </View>
-              ))}
-
-              {players.length >= 2 && (!isKO || availableFor("a").length + (fbA ? 1 : 0) > 0) && (
-                <View style={styles.composer}>
-                  <Text style={styles.miniLabel}>PLAYER 1</Text>
-                  <View style={styles.chipRow}>
-                    {availableFor("a").map((p) => (
-                      <Pressable key={p.user_id} testID={`mb-a-${p.user_id}`} onPress={() => setFbA(p.user_id)} style={[styles.chip, fbA === p.user_id && { borderColor: accent, backgroundColor: colors.surfaceTertiary }]}>
-                        <Text style={[styles.chipText, fbA === p.user_id && { color: colors.onSurface }]}>{p.display_name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  <Text style={styles.miniLabel}>PLAYER 2</Text>
-                  <View style={styles.chipRow}>
-                    {availableFor("b").map((p) => (
-                      <Pressable key={p.user_id} testID={`mb-b-${p.user_id}`} onPress={() => setFbB(p.user_id)} style={[styles.chip, fbB === p.user_id && { borderColor: accent, backgroundColor: colors.surfaceTertiary }]}>
-                        <Text style={[styles.chipText, fbB === p.user_id && { color: colors.onSurface }]}>{p.display_name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  <Text style={styles.miniLabel}>DATE & TIME (OPTIONAL)</Text>
-                  <DateTimeField value={fbAt} onChange={setFbAt} accent={accent} testIDPrefix="mb-dt" />
-
-                  <Pressable testID="mb-add" onPress={addBuilt} style={[styles.addBtn, { borderColor: accent }]}>
-                    <Ionicons name="add" size={18} color={accent} />
-                    <Text style={[styles.addBtnText, { color: accent }]}>{isKO ? "ADD MATCHUP" : "ADD FIXTURE"}</Text>
-                  </Pressable>
-                </View>
-              )}
-              {isKO && <Text style={styles.hint}>Any player left unpaired gets a bye automatically.</Text>}
-            </View>
           )}
 
           {err && <Text style={styles.err} testID="cc-error">{err}</Text>}
@@ -223,21 +135,11 @@ export default function CompetitionCreateScreen() {
       </KeyboardAvoidingView>
       <View style={styles.footer}>
         <Pressable testID="cc-submit" onPress={create} disabled={busy} style={[styles.cta, { backgroundColor: accent }, busy && { opacity: 0.6 }]}>
-          {busy ? <ActivityIndicator color="#0B0D12" /> : <Text style={styles.ctaText}>CREATE →</Text>}
+          {busy ? <ActivityIndicator color="#0B0D12" /> : <Text style={styles.ctaText}>{isManual ? "CREATE →" : "CREATE & GENERATE →"}</Text>}
         </Pressable>
       </View>
     </SafeAreaView>
   );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <View style={{ gap: 6 }}><Text style={styles.label}>{label}</Text>{children}</View>;
-}
-
-function fmtWhen(d: Date) {
-  try {
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  } catch { return "SCHEDULED"; }
 }
 
 const styles = StyleSheet.create({
@@ -248,22 +150,12 @@ const styles = StyleSheet.create({
   privateBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
   privateText: { ...font.textBold, letterSpacing: 0.5, fontSize: 10, color: colors.onSurfaceSecondary, flexShrink: 1 },
   label: { ...font.textBold, letterSpacing: 2, fontSize: 10, color: colors.onSurfaceSecondary },
-  miniLabel: { ...font.textBold, letterSpacing: 1.5, fontSize: 9, color: colors.onSurfaceTertiary, marginTop: 4 },
   input: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceSecondary, color: colors.onSurface, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md, ...font.text, fontSize: 15 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
   pill: { minHeight: 40, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
   pillText: { ...font.textBold, letterSpacing: 1, fontSize: 11, color: colors.onSurfaceSecondary },
   hint: { ...font.text, fontSize: 12, color: colors.onSurfaceTertiary },
   err: { ...font.textMedium, color: colors.error, fontSize: 13 },
-  builtRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
-  builtText: { ...font.textBold, fontSize: 14, color: colors.onSurface },
-  builtWhen: { ...font.textBold, letterSpacing: 1, fontSize: 9, color: colors.onSurfaceTertiary, marginTop: 2 },
-  composer: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
-  chipRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
-  chip: { minHeight: 36, paddingHorizontal: spacing.md, paddingVertical: 6, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  chipText: { ...font.textBold, fontSize: 12, color: colors.onSurfaceSecondary },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: spacing.md, borderWidth: 1, borderRadius: radius.md, borderStyle: "dashed", backgroundColor: colors.surface, marginTop: 4 },
-  addBtnText: { ...font.textBold, letterSpacing: 1, fontSize: 12 },
   footer: { padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   cta: { paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.md },
   ctaText: { ...font.textBold, letterSpacing: 1.5, fontSize: 13, color: "#0B0D12" },

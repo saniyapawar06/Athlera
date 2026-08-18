@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, font } from "@/src/theme";
 import { api } from "@/src/api";
+import { cacheGet, cacheSet } from "@/src/utils/cache";
 
 export type SelectablePlayer = { user_id: string; display_name: string; rating?: number; city?: string };
 
@@ -26,22 +27,24 @@ export default function PlayerMultiSelect({ sportId, accent, selected, onChange,
 
   useEffect(() => {
     let alive = true;
+    const key = source === "search" ? `opp:${sportId}:${q.trim().toLowerCase()}` : `nearbyP:${sportId}`;
+    const cached = cacheGet<SelectablePlayer[]>(key);
+    if (cached) { setResults(cached); setLoading(false); } else { setLoading(true); }
     const t = setTimeout(async () => {
-      setLoading(true);
       try {
         if (source === "search") {
           const r = await api.opponents(sportId, q);
-          if (alive) setResults(r.opponents || []);
+          if (alive) { const list = r.opponents || []; setResults(list); cacheSet(key, list); }
         } else {
           const r = await api.nearby(sportId);
-          if (alive) setResults((r.players || r.nearby || []).map((p: any) => ({ user_id: p.user_id, display_name: p.display_name, rating: p.rating, city: p.area || p.city })));
+          if (alive) { const list = (r.players || r.nearby || []).map((p: any) => ({ user_id: p.user_id, display_name: p.display_name, rating: p.rating, city: p.area || p.city })); setResults(list); cacheSet(key, list); }
         }
       } catch {
-        if (alive) setResults([]);
+        if (alive && !cached) setResults([]);
       } finally {
         if (alive) setLoading(false);
       }
-    }, source === "search" ? 200 : 0);
+    }, cached ? 250 : (source === "search" ? 200 : 0));
     return () => { alive = false; clearTimeout(t); };
   }, [q, source, sportId]);
 

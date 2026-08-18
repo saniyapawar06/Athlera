@@ -56,8 +56,18 @@ export default function SocialScreen() {
 
   useEffect(() => {
     (async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      setLocationState(permission.status === "granted" ? "granted" : "manual");
+      try {
+        // Ask for location only if the user has not already granted or declined it.
+        // Runs once while Social is mounted, so switching Social tabs never re-prompts.
+        const existing = await Location.getForegroundPermissionsAsync();
+        if (existing.status === "granted") { setLocationState("granted"); return; }
+        if (existing.canAskAgain) {
+          const req = await Location.requestForegroundPermissionsAsync();
+          setLocationState(req.status === "granted" ? "granted" : "manual");
+        } else {
+          setLocationState("manual");
+        }
+      } catch { setLocationState("manual"); }
     })();
   }, []);
 
@@ -96,7 +106,16 @@ export default function SocialScreen() {
 
   const reqAction = async (rid: string, action: string) => {
     setBusy(true);
-    try { await api.playRequestAction(rid, action); await load(); } finally { setBusy(false); }
+    // Optimistically update so declined/cancelled requests disappear from the feed immediately.
+    setReqs((prev) => {
+      const upd = (list: any[]) => action === "accept"
+        ? list.map((r) => (r.id === rid ? { ...r, status: "accepted" } : r))
+        : list.filter((r) => r.id !== rid);
+      const next = { incoming: upd(prev.incoming), outgoing: upd(prev.outgoing) };
+      cacheSet("reqs", next);
+      return next;
+    });
+    try { await api.playRequestAction(rid, action); } finally { setBusy(false); load(); }
   };
 
   const invite = async (cid: string) => {
