@@ -34,7 +34,6 @@ export default function DashboardScreen() {
     if (!g) return;
     let pick: { kind: CelebrationKind; message: string } | null = null;
     if (g.titles > 0) pick = { kind: "competition_win", message: `You've won ${g.titles} competition${g.titles > 1 ? "s" : ""}. Legendary.` };
-    else if (g.best_rank && g.best_rank <= 10) pick = { kind: "top10", message: `You're ranked #${g.best_rank} — top 10 material!` };
     else if (g.current_streak >= 3) pick = { kind: "streak", message: `${g.current_streak} wins in a row. Keep the fire going!` };
     else if ((g.personal_bests || []).some((p: any) => p.at_peak)) pick = { kind: "personal_best", message: "You're sitting at a career-high rating. New personal best!" };
     else if (g.matches_this_week >= 3) pick = { kind: "keep_it_up", message: `${g.matches_this_week} matches this week. Great consistency!` };
@@ -142,10 +141,6 @@ export default function DashboardScreen() {
                 <View style={styles.gamStat}>
                   <View style={styles.gamStatHead}><Ionicons name="flame" size={14} color="#FF6B4A" /><Text style={styles.gamStatValue}>{g.current_streak}</Text></View>
                   <Text style={styles.gamStatLabel}>STREAK</Text>
-                </View>
-                <View style={styles.gamStat}>
-                  <View style={styles.gamStatHead}><Ionicons name="trophy" size={13} color="#FFD54A" /><Text style={styles.gamStatValue}>{g.best_rank ? `#${g.best_rank}` : "—"}</Text></View>
-                  <Text style={styles.gamStatLabel}>BEST RANK</Text>
                 </View>
                 <View style={styles.gamStat}>
                   <View style={styles.gamStatHead}><Ionicons name="calendar" size={13} color={colors.brand} /><Text style={styles.gamStatValue}>{g.matches_this_week}</Text></View>

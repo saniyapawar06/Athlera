@@ -703,13 +703,6 @@ async def _competition_progress(user_id: str) -> Optional[dict]:
     if not comp:
         return None
     if comp["type"] == "knockout":
-        fixtures = await DB.fixtures.find({"competition_id": comp["id"]}, {"_id": 0}).sort([("round", 1), ("index", 1)]).to_list(500)
-        total_rounds = next((f["total_rounds"] for f in fixtures if f.get("total_rounds")), None)
-        for f in fixtures:
-            if f.get("status") != "complete" and not f.get("winner_side"):
-                uids = [x for s in f["sides"] for x in s["user_ids"]]
-                if user_id in uids:
-                    return {"name": comp["name"], "label": f'{_ko_round_name(f["round"], total_rounds).title()} next', "sport_id": comp["sport_id"]}
         return {"name": comp["name"], "label": "Playing", "sport_id": comp["sport_id"]}
     standings = await _compute_standings(comp["id"])
     for row in standings:
@@ -797,8 +790,6 @@ async def _player_gamification(user_id: str) -> dict:
         badges.append({"id": "streak3", "label": "On Fire", "icon": "flame"})
     if longest >= 5:
         badges.append({"id": "streak5", "label": "Unstoppable", "icon": "flash"})
-    if best_rank is not None and best_rank <= 10:
-        badges.append({"id": "top10", "label": "Top 10", "icon": "ribbon"})
     if titles >= 1:
         badges.append({"id": "champion", "label": "Champion", "icon": "medal"})
     if len(seq) >= 10:
@@ -2004,24 +1995,54 @@ async def competition_generate(cid: str, u: dict = Depends(current_user)):
     else:  # knockout — seed by rating, add byes to next power of two
         ps = await DB.player_sports.find({"sport_id": c["sport_id"], "user_id": {"$in": players}}, {"_id": 0}).to_list(200)
         rmap = {p["user_id"]: p["rating"] for p in ps}
-        if c.get("draw_mode") == "random":
-            import random
-            seeded = list(players); random.shuffle(seeded)
-        elif c.get("draw_mode") == "manual" and c.get("manual_pairs"):
-            seeded = [uid for pair in c["manual_pairs"] for uid in pair if uid in players]
-            seeded += [uid for uid in players if uid not in seeded]
+        manual_explicit = (
+            c.get("draw_mode") == "manual"
+            and any(len(p) == 2 for p in c.get("manual_pairs", []))
+        )
+        if manual_explicit:
+            # Organiser placed players into exact first-round pairings.
+            raw_pairs: list[list[str]] = []
+            seen: set[str] = set()
+            for pair in c.get("manual_pairs", []):
+                slot = [uid for uid in pair if uid in players and uid not in seen]
+                if not slot:
+                    continue
+                for uid in slot:
+                    seen.add(uid)
+                raw_pairs.append(slot[:2])
+            # any participant the organiser did not place gets a bye
+            for uid in players:
+                if uid not in seen:
+                    raw_pairs.append([uid]); seen.add(uid)
+            # bracket depth from the number of first-round matches (rounded up)
+            n1 = len(raw_pairs)
+            p2 = 1
+            while p2 < n1:
+                p2 *= 2
+            total_rounds = 1
+            t = p2
+            while t > 1:
+                total_rounds += 1; t //= 2
+            pairs = [(pr[0] if len(pr) >= 1 else None, pr[1] if len(pr) >= 2 else None) for pr in raw_pairs]
         else:
-            seeded = sorted(players, key=lambda x: rmap.get(x, 0), reverse=True)
-        size = 1
-        while size < len(seeded):
-            size *= 2
-        # standard seeding order pairing highest vs lowest
-        slots: list[Optional[str]] = seeded + [None] * (size - len(seeded))
-        pairs = [(slots[i], slots[size - 1 - i]) for i in range(size // 2)]
-        total_rounds = 0
-        t = size
-        while t > 1:
-            total_rounds += 1; t //= 2
+            if c.get("draw_mode") == "random":
+                import random
+                seeded = list(players); random.shuffle(seeded)
+            elif c.get("draw_mode") == "manual" and c.get("manual_pairs"):
+                seeded = [uid for pair in c["manual_pairs"] for uid in pair if uid in players]
+                seeded += [uid for uid in players if uid not in seeded]
+            else:
+                seeded = sorted(players, key=lambda x: rmap.get(x, 0), reverse=True)
+            size = 1
+            while size < len(seeded):
+                size *= 2
+            # standard seeding order pairing highest vs lowest
+            slots: list[Optional[str]] = seeded + [None] * (size - len(seeded))
+            pairs = [(slots[i], slots[size - 1 - i]) for i in range(size // 2)]
+            total_rounds = 0
+            t = size
+            while t > 1:
+                total_rounds += 1; t //= 2
         for idx, (a, b) in enumerate(pairs):
             is_bye = (a is None) != (b is None)
             winner_side = None

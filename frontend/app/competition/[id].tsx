@@ -109,10 +109,12 @@ export default function CompetitionDetailScreen() {
       {c.is_organiser && (
         <View style={styles.orgBar}>
           <Text style={styles.orgLabel}>ORGANISER</Text>
-          <Pressable testID="add-players-btn" onPress={() => { setNewPlayers([]); setAddPlayersOpen(true); }} style={[styles.orgBtnOutline]}>
-            <Ionicons name="person-add" size={14} color={colors.onSurface} />
-            <Text style={styles.orgBtnOutlineText}>ADD PLAYERS</Text>
-          </Pressable>
+          {!(isKO && hasFixtures) && (
+            <Pressable testID="add-players-btn" onPress={() => { setNewPlayers([]); setAddPlayersOpen(true); }} style={[styles.orgBtnOutline]}>
+              <Ionicons name="person-add" size={14} color={colors.onSurface} />
+              <Text style={styles.orgBtnOutlineText}>ADD PLAYERS</Text>
+            </Pressable>
+          )}
           {!hasFixtures && !manualLeague ? (
             <Pressable testID="generate-fixtures-btn" onPress={() => act(() => api.compGenerate(cid))} disabled={busy} style={[styles.orgBtn, { backgroundColor: accent }]}>
               <Text style={styles.orgBtnText}>{busy ? "…" : "GENERATE"}</Text>

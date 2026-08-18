@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,15 +25,37 @@ export default function CompetitionCreateScreen() {
 
   const isKO = type === "knockout";
   const manualLeague = !isKO && fixtureMode === "manual";
-  const reorderable = isKO && drawMode === "manual";
+  const [manualPairs, setManualPairs] = useState<string[][]>([]);
+
+  // Keep manual pairings in sync with the selected player list.
+  useEffect(() => {
+    const ids = new Set(players.map((p) => p.user_id));
+    setManualPairs((prev) => prev.map((pair) => pair.filter((id) => ids.has(id))).filter((pair) => pair.length > 0));
+  }, [players]);
+
+  const pairedIds = new Set(manualPairs.flat());
+  const availablePlayers = players.filter((p) => !pairedIds.has(p.user_id));
+  const nameOf = (id: string) => players.find((p) => p.user_id === id)?.display_name || "Player";
+  const addToPair = (id: string) =>
+    setManualPairs((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.length === 1) {
+        const cp = [...prev];
+        cp[cp.length - 1] = [last[0], id];
+        return cp;
+      }
+      return [...prev, [id]];
+    });
+  const removePair = (idx: number) => setManualPairs((prev) => prev.filter((_, i) => i !== idx));
 
   const create = async () => {
     setErr(null);
     if (!name.trim()) { setErr("Give your competition a name"); return; }
     if (players.length < 2) { setErr("Add at least 2 players"); return; }
+    if (isKO && drawMode === "manual" && !manualPairs.some((p) => p.length === 2)) { setErr("Set at least one first-round match"); return; }
     setBusy(true);
     try {
-      const manual_pairs = isKO && drawMode === "manual" ? players.map((p) => [p.user_id]) : [];
+      const manual_pairs = isKO && drawMode === "manual" ? manualPairs : [];
       const res = await api.compCreate({
         name: name.trim(), sport_id: sid, type, visibility: "private",
         matches_per_opponent: mpo,
@@ -91,7 +113,7 @@ export default function CompetitionCreateScreen() {
           </View>
 
           <Text style={styles.label}>PLAYERS · {players.length} SELECTED</Text>
-          <PlayerMultiSelect sportId={sid} accent={accent} selected={players} onChange={setPlayers} reorderable={reorderable} />
+          <PlayerMultiSelect sportId={sid} accent={accent} selected={players} onChange={setPlayers} />
 
           {!isKO && (
             <>
@@ -128,7 +150,28 @@ export default function CompetitionCreateScreen() {
                   </Pressable>
                 ))}
               </View>
-              {drawMode === "manual" && <Text style={styles.hint}>Order players above = seed order (1 = top seed). Byes are added automatically.</Text>}
+              {drawMode === "manual" && (
+                <View style={{ gap: spacing.sm }} testID="manual-draw-builder">
+                  <Text style={styles.hint}>Tap two players to set a first-round match. Any player left unpaired gets a bye.</Text>
+                  {availablePlayers.length > 0 && (
+                    <View style={styles.row}>
+                      {availablePlayers.map((p) => (
+                        <Pressable key={p.user_id} testID={`md-pick-${p.user_id}`} onPress={() => addToPair(p.user_id)} style={styles.pill}>
+                          <Text style={styles.pillText}>{p.display_name.toUpperCase()}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {manualPairs.map((pair, idx) => (
+                    <View key={idx} style={styles.pairRow} testID={`md-pair-${idx}`}>
+                      <Text style={styles.pairText} numberOfLines={1}>{idx + 1}. {nameOf(pair[0])}{pair.length === 2 ? `  vs  ${nameOf(pair[1])}` : "  \u00b7  BYE"}</Text>
+                      <Pressable testID={`md-pair-remove-${idx}`} onPress={() => removePair(idx)} hitSlop={8}>
+                        <Ionicons name="close-circle" size={20} color={colors.onSurfaceTertiary} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
             </>
           )}
 
@@ -161,6 +204,8 @@ const styles = StyleSheet.create({
   pill: { minHeight: 40, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
   pillText: { ...font.textBold, letterSpacing: 1, fontSize: 11, color: colors.onSurfaceSecondary },
   hint: { ...font.text, fontSize: 12, color: colors.onSurfaceTertiary },
+  pairRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
+  pairText: { ...font.textBold, fontSize: 13, color: colors.onSurface, flex: 1 },
   err: { ...font.textMedium, color: colors.error, fontSize: 13 },
   footer: { padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   cta: { paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.md },
