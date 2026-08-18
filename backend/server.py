@@ -703,12 +703,12 @@ async def _competition_progress(user_id: str) -> Optional[dict]:
     if not comp:
         return None
     if comp["type"] == "knockout":
-        return {"name": comp["name"], "label": "Playing", "sport_id": comp["sport_id"]}
+        return None
     standings = await _compute_standings(comp["id"])
     for row in standings:
         if row.get("user_id") == user_id:
             return {"name": comp["name"], "label": f'{_ordinal(row["position"])} of {len(standings)}', "sport_id": comp["sport_id"]}
-    return {"name": comp["name"], "label": "Playing", "sport_id": comp["sport_id"]}
+    return None
 
 
 async def _player_gamification(user_id: str) -> dict:
@@ -1683,6 +1683,7 @@ class CompetitionCreateIn(BaseModel):
     fixture_mode: str = "automatic"  # automatic | manual
     draw_mode: str = "rating"  # rating | random | manual
     manual_pairs: list[list[str]] = []
+    manual_schedule: list[Optional[str]] = []
 
 
 @api.post("/competitions/create")
@@ -1705,6 +1706,7 @@ async def competition_create(body: CompetitionCreateIn, u: dict = Depends(curren
         "matches_per_opponent": body.matches_per_opponent,
         "fixture_mode": body.fixture_mode, "draw_mode": body.draw_mode,
         "manual_pairs": body.manual_pairs,
+        "manual_schedule": body.manual_schedule,
         "points_win": body.points_win, "points_loss": body.points_loss,
         "playoff_qualifiers": body.playoff_qualifiers, "max_participants": body.max_participants,
         "organiser_id": u["id"], "status": "registration_open", "fixtures_generated": False,
@@ -1968,17 +1970,24 @@ async def competition_generate(cid: str, u: dict = Depends(current_user)):
     if c["type"] == "league":
         initial_status = "unscheduled"
         if c.get("fixture_mode") == "manual":
-            pairs = [tuple(pair) for pair in c.get("manual_pairs", []) if len(pair) == 2]
+            raw = c.get("manual_pairs", [])
+            sched = c.get("manual_schedule", [])
+            pairs = []
+            for i, pair in enumerate(raw):
+                if len(pair) != 2:
+                    continue
+                at = sched[i] if i < len(sched) else None
+                pairs.append((pair[0], pair[1], at))
             if not pairs:
                 raise HTTPException(400, "Add at least one manual pairing")
-            if any(a not in players or b not in players or a == b for a, b in pairs):
+            if any(a not in players or b not in players or a == b for a, b, _ in pairs):
                 raise HTTPException(400, "Manual pairing contains an invalid participant")
-            for idx, (a, b) in enumerate(pairs):
+            for idx, (a, b, at) in enumerate(pairs):
                 await DB.fixtures.insert_one({
                     "id": str(uuid.uuid4()), "competition_id": cid, "round": 1, "index": idx,
                     "sides": [{"side": 0, "user_ids": [a]}, {"side": 1, "user_ids": [b]}],
-                    "status": initial_status, "winner_side": None, "score": None, "match_id": None,
-                    "scheduled_at": None, "created_at": now_utc(),
+                    "status": "scheduled" if at else "unscheduled", "winner_side": None, "score": None, "match_id": None,
+                    "scheduled_at": at or None, "created_at": now_utc(),
                 })
         else:
             # Group the round-robin into balanced, numbered rounds so the UI can
@@ -2000,20 +2009,24 @@ async def competition_generate(cid: str, u: dict = Depends(current_user)):
             and any(len(p) == 2 for p in c.get("manual_pairs", []))
         )
         if manual_explicit:
-            # Organiser placed players into exact first-round pairings.
+            # Organiser placed players into exact first-round pairings (with optional date/time).
+            src = c.get("manual_pairs", [])
+            src_sched = c.get("manual_schedule", [])
             raw_pairs: list[list[str]] = []
+            raw_sched: list[Optional[str]] = []
             seen: set[str] = set()
-            for pair in c.get("manual_pairs", []):
+            for i, pair in enumerate(src):
                 slot = [uid for uid in pair if uid in players and uid not in seen]
                 if not slot:
                     continue
                 for uid in slot:
                     seen.add(uid)
                 raw_pairs.append(slot[:2])
+                raw_sched.append(src_sched[i] if i < len(src_sched) else None)
             # any participant the organiser did not place gets a bye
             for uid in players:
                 if uid not in seen:
-                    raw_pairs.append([uid]); seen.add(uid)
+                    raw_pairs.append([uid]); raw_sched.append(None); seen.add(uid)
             # bracket depth from the number of first-round matches (rounded up)
             n1 = len(raw_pairs)
             p2 = 1
@@ -2024,6 +2037,7 @@ async def competition_generate(cid: str, u: dict = Depends(current_user)):
             while t > 1:
                 total_rounds += 1; t //= 2
             pairs = [(pr[0] if len(pr) >= 1 else None, pr[1] if len(pr) >= 2 else None) for pr in raw_pairs]
+            schedule = list(raw_sched)
         else:
             if c.get("draw_mode") == "random":
                 import random
@@ -2043,18 +2057,25 @@ async def competition_generate(cid: str, u: dict = Depends(current_user)):
             t = size
             while t > 1:
                 total_rounds += 1; t //= 2
+            schedule = [None] * len(pairs)
         for idx, (a, b) in enumerate(pairs):
+            at = schedule[idx] if idx < len(schedule) else None
             is_bye = (a is None) != (b is None)
             winner_side = None
-            status = "scheduled"
             if is_bye:
                 winner_side = 0 if a is not None else 1
                 status = "bye"
+            elif at:
+                status = "scheduled"
+            elif manual_explicit:
+                status = "unscheduled"
+            else:
+                status = "scheduled"
             await DB.fixtures.insert_one({
                 "id": str(uuid.uuid4()), "competition_id": cid, "round": 1, "index": idx,
                 "sides": [{"side": 0, "user_ids": [a] if a else []}, {"side": 1, "user_ids": [b] if b else []}],
                 "status": status, "winner_side": winner_side, "score": None, "match_id": None,
-                "scheduled_at": None,
+                "scheduled_at": at or None,
                 "total_rounds": total_rounds, "created_at": now_utc(),
             })
         await _create_next_knockout_round(cid, 1)

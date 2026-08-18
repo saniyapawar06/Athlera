@@ -24,7 +24,6 @@ export default function CompetitionDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("fixtures");
   const [busy, setBusy] = useState(false);
-  const [manage, setManage] = useState(false);
   const [scoringFixture, setScoringFixture] = useState<any | null>(null);
   const [g, setG] = useState<{ a: string; b: string }[]>([{ a: "", b: "" }]);
   const [err, setErr] = useState<string | null>(null);
@@ -109,20 +108,15 @@ export default function CompetitionDetailScreen() {
       {c.is_organiser && (
         <View style={styles.orgBar}>
           <Text style={styles.orgLabel}>ORGANISER</Text>
-          {!(isKO && hasFixtures) && (
+          {!hasFixtures && (
             <Pressable testID="add-players-btn" onPress={() => { setNewPlayers([]); setAddPlayersOpen(true); }} style={[styles.orgBtnOutline]}>
               <Ionicons name="person-add" size={14} color={colors.onSurface} />
               <Text style={styles.orgBtnOutlineText}>ADD PLAYERS</Text>
             </Pressable>
           )}
-          {!hasFixtures && !manualLeague ? (
+          {!hasFixtures && !manualLeague && (
             <Pressable testID="generate-fixtures-btn" onPress={() => act(() => api.compGenerate(cid))} disabled={busy} style={[styles.orgBtn, { backgroundColor: accent }]}>
               <Text style={styles.orgBtnText}>{busy ? "…" : "GENERATE"}</Text>
-            </Pressable>
-          ) : (
-            <Pressable testID="manage-fixtures-btn" onPress={() => setManage((m) => !m)} style={[styles.orgBtnOutline, manage && { borderColor: accent, backgroundColor: colors.surfaceTertiary }]}>
-              <Ionicons name="construct" size={14} color={manage ? accent : colors.onSurface} />
-              <Text style={[styles.orgBtnOutlineText, manage && { color: accent }]}>MANAGE</Text>
             </Pressable>
           )}
         </View>
@@ -156,13 +150,7 @@ export default function CompetitionDetailScreen() {
 
         {tab === "fixtures" && (
           <>
-            {manage && manualLeague && (
-              <Pressable testID="add-fixture-btn" onPress={() => { setPickA(null); setPickB(null); setAddFixtureOpen(true); }} style={[styles.addFixture, { borderColor: accent }]}>
-                <Ionicons name="add" size={18} color={accent} />
-                <Text style={[styles.addFixtureText, { color: accent }]}>ADD FIXTURE</Text>
-              </Pressable>
-            )}
-            {!hasFixtures ? <Text style={styles.hint}>No fixtures yet.{c.is_organiser ? (manualLeague ? " Tap Manage → Add Fixture." : " Generate them above.") : ""}</Text> :
+            {!hasFixtures ? <Text style={styles.hint}>No fixtures yet.{c.is_organiser && !manualLeague ? " Generate them above." : ""}</Text> :
               isKO ? (
                 <View>
                   <Text style={styles.hint}>Swipe horizontally to follow the draw. {c.is_organiser ? "Tap an open fixture to schedule or score it." : ""}</Text>
@@ -191,7 +179,7 @@ export default function CompetitionDetailScreen() {
                         <Pressable
                           key={f.id}
                           testID={`fixture-${f.id}`}
-                          disabled={!(c.is_organiser && editable && !manage)}
+                          disabled={!(c.is_organiser && editable)}
                           onPress={() => setFxActions(f)}
                           style={styles.fixture}
                         >
@@ -204,14 +192,7 @@ export default function CompetitionDetailScreen() {
                             </Text>
                           </View>
 
-                          {manage && editable ? (
-                            <View style={styles.manageCol}>
-                              <Pressable testID={`fx-schedule-${f.id}`} onPress={() => { setScheduleFixture(f); setSchedAt(f.scheduled_at ? new Date(f.scheduled_at) : null); }} style={styles.mBtn}><Ionicons name="calendar" size={16} color={colors.onSurface} /></Pressable>
-                              <Pressable testID={`fx-up-${f.id}`} onPress={() => act(() => api.fixtureUpdate(f.id, { position: Math.max(0, f.index - 1) }))} style={styles.mBtn}><Ionicons name="arrow-up" size={16} color={colors.onSurface} /></Pressable>
-                              <Pressable testID={`fx-down-${f.id}`} onPress={() => act(() => api.fixtureUpdate(f.id, { position: f.index + 1 }))} style={styles.mBtn}><Ionicons name="arrow-down" size={16} color={colors.onSurface} /></Pressable>
-                              <Pressable testID={`fx-remove-${f.id}`} onPress={() => act(() => api.fixtureRemove(f.id))} style={styles.mBtn}><Ionicons name="trash" size={15} color={colors.error} /></Pressable>
-                            </View>
-                          ) : done ? <Text style={styles.fScore}>{(f.score || []).join("-")}</Text> :
+                          {done ? <Text style={styles.fScore}>{(f.score || []).join("-")}</Text> :
                             bye ? <Text style={styles.fBye}>BYE</Text> :
                             c.is_organiser ? (
                               <View style={styles.tapHint}>
